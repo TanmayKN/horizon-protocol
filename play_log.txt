@@ -1,0 +1,1 @@
+time=1768.7 pos=(0.000001, 4.26236, -33.29238) stance=0 keys_received=6 mouse_captured=false window_focused=true fps=119

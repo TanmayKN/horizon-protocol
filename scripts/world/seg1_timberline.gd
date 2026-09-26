@@ -186,8 +186,8 @@ func _build_grass() -> void:
 		if z > -10.0 and rng.randf() < 0.75:
 			continue   # sparse in the gravel yard
 		var s := rng.randf_range(0.6, 1.4)
-		var basis := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.7, 1.3), s))
-		mm.set_instance_transform(n, Transform3D(basis, Vector3(x, h(x, z) - 0.05, z)))
+		var bs := Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(s, s * rng.randf_range(0.7, 1.3), s))
+		mm.set_instance_transform(n, Transform3D(bs, Vector3(x, h(x, z) - 0.05, z)))
 		n += 1
 	mm.visible_instance_count = n
 	var mmi := MultiMeshInstance3D.new()
@@ -382,7 +382,7 @@ func _build_logging_yard() -> void:
 			B.cyl(self, 0.7, 0.7, 0.6, lv + Vector3(wx, 0.7, wz), M.get_mat("black"), false, Vector3(0, 0, 90), 14)
 	# Fuel drums
 	for i in 7:
-		var dp := Vector3(10 + (i % 3) * 0.75, 0, 28 + (i / 3) * 0.75)
+		var dp := Vector3(10 + (i % 3) * 0.75, 0, 28 + floorf(i / 3.0) * 0.75)
 		B.cyl(self, 0.3, 0.3, 0.9, dp + Vector3(0, 0.45, 0), M.tinted("rust", Color(0.55, 0.2, 0.15)), true, Vector3.ZERO, 12)
 	# Work lights on poles
 	for lp in [Vector3(12, 0, -2), Vector3(-14, 0, 24), Vector3(28, 0, 24)]:

@@ -106,3 +106,63 @@ static func label3d(parent: Node, text: String, pos: Vector3, size := 64, color 
 	l.outline_size = 0
 	parent.add_child(l)
 	return l
+
+
+## A straight wall from a to b (on the XZ plane, base at y) with rectangular openings.
+## openings: Array of [offset_along_wall, width, bottom, top]
+static func wall_openings(parent: Node, a: Vector3, b: Vector3, height: float, thick: float, material: Material, openings: Array = []) -> void:
+	var dir := b - a
+	dir.y = 0
+	var length := dir.length()
+	var u := dir / length
+	var yaw := atan2(-u.z, u.x)   # rotate +X onto the wall direction
+	var ops := openings.duplicate()
+	ops.sort_custom(func(p, q): return p[0] < q[0])
+	var cursor := 0.0
+	var pieces: Array = []   # [start, end, bottom, top]
+	for o in ops:
+		var s: float = o[0]
+		var e: float = o[0] + o[1]
+		if s > cursor:
+			pieces.append([cursor, s, 0.0, height])
+		if o[2] > 0.0:
+			pieces.append([s, e, 0.0, o[2]])
+		if o[3] < height:
+			pieces.append([s, e, o[3], height])
+		cursor = e
+	if cursor < length:
+		pieces.append([cursor, length, 0.0, height])
+	for p in pieces:
+		var w: float = p[1] - p[0]
+		var hgt: float = p[3] - p[2]
+		if w <= 0.01 or hgt <= 0.01:
+			continue
+		var center: Vector3 = a + u * (p[0] + w / 2.0) + Vector3(0, p[2] + hgt / 2.0, 0)
+		box(parent, Vector3(w, hgt, thick), center, material, true, Vector3(0, rad_to_deg(yaw), 0))
+
+
+## A walkable ramp (invisible collider) with visual steps, rising from `bottom` to `top` (both centre points).
+static func stairs(parent: Node, bottom: Vector3, top: Vector3, width: float, material: Material) -> void:
+	var d := top - bottom
+	var run := Vector2(d.x, d.z).length()
+	var rise := d.y
+	var yaw := atan2(d.x, d.z)
+	var steps := int(ceil(rise / 0.2))
+	var holder := Node3D.new()
+	holder.position = bottom
+	holder.rotation.y = yaw
+	parent.add_child(holder)
+	for i in steps:
+		var top_y := (i + 1) * rise / steps
+		var z := (i + 0.5) * run / steps
+		var bm := BoxMesh.new()
+		bm.size = Vector3(width, top_y, run / steps)
+		mesh(holder, bm, Vector3(0, top_y / 2.0, z), material)
+	# Smooth ramp collider along the steps
+	var body := StaticBody3D.new()
+	holder.add_child(body)
+	var shape := BoxShape3D.new()
+	var slope_len := sqrt(run * run + rise * rise)
+	shape.size = Vector3(width, 0.1, slope_len)
+	var cs := add_shape(body, shape, Vector3(0, rise / 2.0, run / 2.0))
+	cs.rotation.x = -atan2(rise, run)

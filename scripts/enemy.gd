@@ -35,7 +35,6 @@ var _strafe_dir := 1.0
 var _strafe_timer := 0.0
 var _aim_time := 0.0
 var _search_timer := 0.0
-var _signal_timer := 0.0
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _flash: OmniLight3D
 
@@ -47,7 +46,7 @@ func _ready() -> void:
 	B.add_shape(self, cap, Vector3(0, 0.9, 0))
 	_build_model()
 	if is_sniper:
-		view_range = 70.0
+		view_range = 38.0
 		health = 80.0
 
 
@@ -145,8 +144,11 @@ func _can_see_player() -> bool:
 		range_mult = 0.7
 	elif player.stance == 2:    # prone
 		range_mult = 0.4
+	# The dark forest hides you well until you reach the wire
+	if player.global_position.z < -32.0:
+		range_mult *= 0.6
 	if game and game.player_in_light():
-		range_mult = maxf(range_mult, 1.6)
+		range_mult = maxf(range_mult, 2.2)
 	if state == State.COMBAT:
 		range_mult = maxf(range_mult, 1.3)
 	if dist > view_range * range_mult:
@@ -205,7 +207,7 @@ func _physics_process(delta: float) -> void:
 		if _sees_player:
 			_last_seen = player.global_position
 			var dist := global_position.distance_to(player.global_position)
-			var rate := 1.6 * clampf(1.4 - dist / view_range, 0.25, 1.4)
+			var rate := 0.9 * clampf(1.4 - dist / view_range, 0.25, 1.4)
 			if game and game.player_in_light():
 				rate *= 2.5
 			awareness = minf(1.0, awareness + rate * 0.1)
@@ -398,6 +400,26 @@ func _face(target: Vector3, delta: float, speed: float) -> void:
 		return
 	var want := atan2(-d.x, -d.z)
 	rotation.y = lerp_angle(rotation.y, want, clampf(speed * delta, 0.0, 1.0))
+
+
+## Shouted tactical command, shown above the soldier's head
+func shout(text: String) -> void:
+	if state == State.DEAD:
+		return
+	var l := Label3D.new()
+	l.text = text
+	l.font_size = 48
+	l.pixel_size = 0.004
+	l.modulate = Color(1, 0.55, 0.4)
+	l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	l.no_depth_test = true
+	l.position = Vector3(0, 2.3, 0)
+	add_child(l)
+	hand_signal()
+	var tw := l.create_tween()
+	tw.tween_interval(1.6)
+	tw.tween_property(l, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(l.queue_free)
 
 
 ## Arm raised hand signal (used during the ambush)

@@ -25,7 +25,6 @@ var _cross: Control
 var _marker: Label
 var _mud_layer: Control
 var _dmg_arrow: Label
-var _ammo_panel: Control
 
 var _radio_hide := 0.0
 var _hint_hide := 0.0
@@ -340,6 +339,18 @@ func mud_splash() -> void:
 func fade_to(alpha: float, time: float) -> void:
 	var tw := create_tween()
 	tw.tween_property(_fade, "color:a", alpha, time)
+
+
+func end_card(line1: String, body: String) -> void:
+	var t := _label(line1, 60, Color(0.95, 0.9, 0.7))
+	_place(t, Control.PRESET_CENTER, -600, -170, 600, -90)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var b := _label(body, 22, Color(0.85, 0.88, 0.9))
+	_place(b, Control.PRESET_CENTER, -600, -70, 600, 200)
+	b.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	move_child(t, get_child_count() - 1)
+	move_child(b, get_child_count() - 1)
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func flash_red(alpha: float) -> void:

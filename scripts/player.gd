@@ -30,6 +30,8 @@ var key_events := 0
 
 var controls_enabled := true  # false during scripted moments
 var move_enabled := true      # false while riding the truck (can still look + shoot)
+var carrier: Node3D = null    # when set, Vance rides along with this node (the truck bed)
+var _carrier_yaw := 0.0
 var health := MAX_HEALTH
 var stamina := MAX_STAMINA
 var is_dead := false
@@ -111,7 +113,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	elif not controls_enabled or not move_enabled:
+	elif not controls_enabled:
 		return
 	elif event.is_action_pressed("crouch"):
 		if sprinting and is_on_floor() and _slide_time <= 0.0:
@@ -132,6 +134,18 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
+	if carrier:
+		# Riding the truck: follow the bed and turn with it
+		var yaw := carrier.global_rotation.y
+		rotation.y += angle_difference(_carrier_yaw, yaw)
+		_carrier_yaw = yaw
+		global_position = carrier.global_position
+		velocity = Vector3.ZERO
+		aiming = controls_enabled and Input.is_action_pressed("aim") and not weapon.reloading
+		sprinting = false
+		surface = "metal"
+		_update_camera(delta, Vector2.ZERO, 0.0)
+		return
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
 		_fall_speed = maxf(_fall_speed, -velocity.y)
@@ -367,6 +381,12 @@ func respawn(pos: Vector3, yaw: float) -> void:
 	stance = Stance.CROUCH
 	_apply_stance(true)
 	weapon.refill()
+
+
+func set_carrier(node: Node3D) -> void:
+	carrier = node
+	if node:
+		_carrier_yaw = node.global_rotation.y
 
 
 func eye_position() -> Vector3:

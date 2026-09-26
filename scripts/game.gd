@@ -10,6 +10,9 @@ const HudScript := preload("res://scripts/hud.gd")
 const MissionScript := preload("res://scripts/mission.gd")
 const TerrainScript := preload("res://scripts/world/terrain.gd")
 const Seg1Script := preload("res://scripts/world/seg1_timberline.gd")
+const Seg2Script := preload("res://scripts/world/seg2_kranor.gd")
+const Seg4Script := preload("res://scripts/world/seg4_pass.gd")
+const Seg5Script := preload("res://scripts/world/seg5_bunker.gd")
 
 const START_POS := Vector3(0, 0, -52)
 
@@ -19,6 +22,12 @@ var mission
 var terrain
 var seg1
 var seg2
+var seg4
+var seg5
+var kills := 0
+var headshots := 0
+var shots_fired := 0
+var play_time := 0.0
 var enemies: Array = []
 var env: Environment
 var sun: DirectionalLight3D
@@ -47,6 +56,26 @@ func _ready() -> void:
 	seg1.game = self
 	seg1.terrain = terrain
 	add_child(seg1)
+
+	seg2 = Node3D.new()
+	seg2.set_script(Seg2Script)
+	seg2.name = "Seg2_Kranor"
+	seg2.game = self
+	add_child(seg2)
+	extra_surfaces.append(seg2.surface_at)
+
+	seg4 = Node3D.new()
+	seg4.set_script(Seg4Script)
+	seg4.name = "Seg4_Pass"
+	seg4.game = self
+	add_child(seg4)
+
+	seg5 = Node3D.new()
+	seg5.set_script(Seg5Script)
+	seg5.name = "Seg5_Bunker"
+	seg5.game = self
+	add_child(seg5)
+	extra_surfaces.append(seg5.surface_at)
 
 	hud = CanvasLayer.new()
 	hud.set_script(HudScript)
@@ -131,6 +160,7 @@ func spawn_enemy(pos: Vector3, patrol: Array = [], sniper := false, stationary :
 
 
 func on_player_shot(pos: Vector3) -> void:
+	shots_fired += 1
 	# Suppressed carbine: only nearby enemies hear it
 	for e in alive_enemies():
 		e.hear(pos, 16.0)
@@ -144,13 +174,46 @@ func on_enemy_alerted(enemy) -> void:
 
 
 func on_enemy_killed(enemy, headshot: bool) -> void:
+	kills += 1
 	if headshot:
+		headshots += 1
 		hud.hint("HEADSHOT", 1.2)
 	# Nearby enemies who see the body become suspicious
 	for e in alive_enemies():
 		if e.global_position.distance_to(enemy.global_position) < 14.0:
 			e.hear(enemy.global_position, 14.0)
 	mission.on_enemy_killed(enemy)
+
+
+# ------------------------------------------------------------------ segments
+
+func start_segment4() -> void:
+	seg4.start(player.global_position)
+
+
+func _process(delta: float) -> void:
+	play_time += delta
+
+
+func drive_secured() -> void:
+	player.controls_enabled = false
+	S.play2d(self, "beep", 0.0)
+	mission.say("Vance", "Overwatch, I have the Horizon Protocol. Raskov is finished.", 0.0, true)
+	mission.say("Overwatch (Sgt. Reyes)", "Copy that, Major. ...Extraction is inbound. Let's go home.")
+	await get_tree().create_timer(6.0).timeout
+	hud.fade_to(1.0, 2.5)
+	await get_tree().create_timer(2.6).timeout
+	var mins := int(play_time) / 60
+	var secs := int(play_time) % 60
+	var acc := 0.0
+	hud.end_card("MISSION COMPLETE", "THE HORIZON PROTOCOL\n\nTime  %d:%02d      Kills  %d      Headshots  %d      Shots fired  %d\n\nThanks for playing!\nA game by Tanmay" % [mins, secs, kills, headshots, shots_fired])
+
+
+## Short slow-motion moment (used for the final breach)
+func slow_motion(scale: float, real_seconds: float) -> void:
+	Engine.time_scale = scale
+	await get_tree().create_timer(real_seconds, true, false, true).timeout
+	Engine.time_scale = 1.0
 
 
 # ------------------------------------------------------------------ checkpoints
@@ -168,7 +231,11 @@ func _on_player_died() -> void:
 	await get_tree().create_timer(2.8).timeout
 	for e in alive_enemies():
 		e.reset_alert()
-	player.respawn(checkpoint_pos, checkpoint_yaw)
+	if mission.step.begins_with("s4") and seg4.active:
+		player.respawn(seg4.bed_anchor.global_position, player.rotation.y)
+		seg4.rewind()
+	else:
+		player.respawn(checkpoint_pos, checkpoint_yaw)
 	mission.on_respawn()
 	hud.fade_to(0.0, 1.2)
 

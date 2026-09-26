@@ -39,9 +39,9 @@ static func emissive(color: Color, energy := 2.0) -> StandardMaterial3D:
 
 # ------------------------------------------------------------------ textures
 
-static func noise_tex(seed: int, freq: float, w: int, h: int, colors: Array, normal := false, bump := 4.0, noise_type := FastNoiseLite.TYPE_SIMPLEX_SMOOTH, octaves := 5) -> NoiseTexture2D:
+static func noise_tex(sd: int, freq: float, w: int, h: int, colors: Array, normal := false, bump := 4.0, noise_type := FastNoiseLite.TYPE_SIMPLEX_SMOOTH, octaves := 5) -> NoiseTexture2D:
 	var n := FastNoiseLite.new()
-	n.seed = seed
+	n.seed = sd
 	n.frequency = freq
 	n.noise_type = noise_type
 	n.fractal_octaves = octaves

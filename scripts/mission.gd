@@ -16,6 +16,14 @@ var _alert_lines := 0
 var _kill_lines := 0
 var _t := 0.0
 var _step_t := 0.0
+var _dl_progress := 0.0
+var _wave: Array = []
+var _wave_spawned := 0
+var _shout_t := 0.0
+var _breach_progress := 0.0
+var _breach_armed := false
+var _vault_progress := 0.0
+var _raskov
 
 
 func _ready() -> void:
@@ -39,6 +47,46 @@ func _process(delta: float) -> void:
 		"s1_downhill":
 			if p.global_position.z > game.terrain.YARD_Z + 2.0:
 				_go("s2_enter")
+		"s2_enter":
+			if game.seg2.in_admin(p.global_position):
+				_go("s2_admin")
+		"s2_admin":
+			if _near3(game.seg2.TERMINAL_POS, 2.4):
+				_go("s2_download")
+		"s2_download":
+			_do_download(delta)
+		"s3_blackout":
+			if _step_t > 4.0 and _wave_dead(_wave):
+				_go("s3_down")
+		"s3_down":
+			if game.seg2.floor_of(p.global_position) == 1 and game.seg2.in_admin(p.global_position):
+				_go("s3_catwalk")
+		"s3_catwalk":
+			_do_catwalk_wave(delta)
+			if _step_t > 8.0 and (_alive_in(_wave) <= 1 or _step_t > 50.0):
+				_go("s3_window")
+		"s3_window":
+			_do_window(delta)
+		"s5_enter":
+			if game.seg5.in_server_room(p.global_position):
+				_go("s5_server")
+		"s5_server":
+			if _near3(game.seg5.BREACH_POS + Vector3(0, 0, -1.5), 3.0):
+				_go("s5_breach")
+		"s5_breach":
+			_do_breach(delta)
+		"s5_raskov":
+			if _raskov and _raskov.dead() and _wave_dead(_wave):
+				_go("s5_vault")
+		"s5_vault":
+			_do_vault(delta)
+		"s5_drive":
+			if _near3(game.seg5.DRIVE_POS, 2.2):
+				game.hud.prompt("Press  F  to take the Horizon Protocol drive")
+				if Input.is_action_just_pressed("interact"):
+					_go("end")
+			else:
+				game.hud.prompt("")
 		_:
 			pass
 
@@ -82,7 +130,101 @@ func _go(new_step: String) -> void:
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
 			say(OVERWATCH, "You're inside Kranor. The target terminal is in the admin office, dead centre of the yard.", 1.0)
 			say(OVERWATCH, "Container stacks will box you in. Watch every corner.")
-			hud.set_objective("Find the admin office terminal (coming next)")
+			say(OVERWATCH, "Admin block is the three-storey building east of the road, next to warehouse W1. Terminal's on the top floor.")
+			_spawn_segment2()
+			hud.set_objective("Infiltrate the admin block", Vector3(36.5, 1.5, 105))
+		"s2_admin":
+			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
+			say(OVERWATCH, "You're inside. Stairs are in the north-east corner. Top floor, secure node.", 0.3)
+			hud.set_objective("Reach the terminal on the top floor", game.seg2.TERMINAL_POS + Vector3(0, 1.2, -0.9))
+		"s2_download":
+			say(VANCE, "At the terminal. Starting the download.", 0.0)
+			hud.set_objective("Download the encrypted logs", game.seg2.TERMINAL_POS + Vector3(0, 1.2, -0.9))
+		"s3_blackout":
+			hud.prompt("")
+			game.seg2.start_blackout()
+			game.set_atmosphere("blackout")
+			game.player.add_shake(1.2)
+			hud.title("SEGMENT 3", "The Ambush and Comms Jam     |     The Admin Block")
+			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
+			say(VANCE, "Download complete. Overwatch, I have the logs-", 0.2, true)
+			say(OVERWATCH, "Vance, the grid just went- that wasn't us. Vanguard QRF is on the stairs!", 0.3, false, true)
+			hud.hint("COMMS JAMMED", 4.0)
+			hud.set_objective("Survive the counter-attack")
+			_wave = []
+			var top: Vector3 = game.seg2.RAMP_B_TOP
+			for off in [Vector3(-0.8, 0.3, 0.5), Vector3(0.8, 0.3, 1.5), Vector3(0.0, 0.3, 2.5)]:
+				var e = game.spawn_enemy(top + off, [], false, false, 0.0, "Vanguard")
+				e.health = 120.0
+				e.alert(game.player.global_position)
+				_wave.append(e)
+			get_tree().create_timer(1.0).timeout.connect(func():
+				if is_instance_valid(_wave[0]):
+					_wave[0].shout("CONTACT! TOP FLOOR!"))
+		"s3_down":
+			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
+			say(OVERWATCH, "-ance, do you read? ...stairwell's collapsing below the second floor...", 0.5, false, true)
+			say(OVERWATCH, "Get down to the second storey. The transformer blast took out the west windows. That's your exit.")
+			hud.set_objective("Fight your way down to the second storey", Vector3(47.5, game.seg2.FLOOR_H + 1.2, 114.5))
+		"s3_catwalk":
+			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
+			_wave = []
+			_wave_spawned = 0
+			say(OVERWATCH, "Movement on the warehouse catwalk! They're coming through the south door!", 0.3, true)
+			hud.set_objective("Hold off the Vanguard squad at the catwalk door", game.seg2.CATWALK_DOOR + Vector3(0, 1.5, 0))
+		"s3_window":
+			game.seg2.stop_alarm()
+			say(OVERWATCH, "Vance! I've got a supply truck. I'm bringing it under the west window. When I say jump, you JUMP!", 0.2, true)
+			hud.set_objective("Escape through the blown-out window", game.seg2.WINDOW_POS + Vector3(0, 1.2, 0))
+		"s4_escape":
+			hud.prompt("")
+			hud.set_objective("")
+			say(OVERWATCH, "NOW, VANCE!", 0.0, true)
+			game.start_segment4()
+		"s4_ride":
+			hud.set_objective("Survive the escape  -  shoot the pursuing technicals")
+			say(OVERWATCH, "Got you! Hold on to something!", 0.2, true)
+			say(VANCE, "Just drive, Reyes!")
+		"s5_enter":
+			var out: Vector3 = game.seg4.dismount()
+			game.player.global_position = out
+			game.player.stance = 1
+			game.player._apply_stance(true)
+			game.player.move_enabled = true
+			game.player.controls_enabled = true
+			game.set_atmosphere("bunker")
+			game.seg5.set_ambience(true)
+			game.set_checkpoint(out, game.player.rotation.y, false)
+			hud.title("SEGMENT 5", "The Subterranean Stronghold     |     Vanguard Command Bunker")
+			say(OVERWATCH, "Argh... my leg's pinned under the dash. I'll hold the entrance.", 1.5, true)
+			say(OVERWATCH, "Go, Vance. Raskov is in there. Finish it.")
+			hud.set_objective("Push into the bunker", Vector3(10, 20.5, 648))
+			_spawn_segment5()
+		"s5_server":
+			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
+			say(OVERWATCH, "Command center is up the stairs on the west side of the data core. Behind the glass.", 0.5)
+			hud.set_objective("Reach the command center door", game.seg5.BREACH_POS + Vector3(0, 1.6, -0.4))
+		"s5_breach":
+			game.seg5.set_ambience(false)
+			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
+			say(VANCE, "At the command center door. It's quiet. Too quiet.", 0.3, true)
+			say(OVERWATCH, "Plant the charge. On your go, Major.")
+			hud.set_objective("Breach the command center", game.seg5.BREACH_POS + Vector3(0, 1.6, -0.4))
+		"s5_raskov":
+			hud.prompt("")
+			hud.set_objective("Neutralize Raskov")
+		"s5_vault":
+			game.seg5.set_ambience(true)
+			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
+			say(OVERWATCH, "Raskov's down? ...Good. The Protocol is in the vault behind the command center. Get it.", 1.0, true)
+			hud.set_objective("Open the vault", game.seg5.VAULT_POS + Vector3(0, 1.7, -0.5))
+		"s5_drive":
+			hud.prompt("")
+			hud.set_objective("Secure the Horizon Protocol", game.seg5.DRIVE_POS + Vector3(0, 0.4, 0))
+		"end":
+			hud.prompt("")
+			hud.set_objective("")
+			game.drive_secured()
 
 
 func skip() -> void:
@@ -96,6 +238,46 @@ func skip() -> void:
 				game.seg1.sniper.take_hit(999, game.seg1.sniper.eye(), Vector3.ZERO)
 		"s1_downhill":
 			game.player.global_position = Vector3(20, 0.5, game.terrain.YARD_Z + 4.0)
+		"s2_enter":
+			game.player.global_position = Vector3(38, 0.3, 105)
+		"s2_admin":
+			game.player.global_position = game.seg2.TERMINAL_POS + Vector3(-1.0, 0.3, 0.2)
+		"s2_download":
+			_dl_progress = 99.0
+		"s3_blackout", "s3_catwalk":
+			for e in _wave:
+				if is_instance_valid(e) and not e.dead():
+					e.take_hit(999, e.eye(), Vector3.ZERO)
+			if step == "s3_catwalk":
+				_step_t = 99.0
+		"s3_down":
+			game.player.global_position = Vector3(47.5, game.seg2.FLOOR_H + 0.3, 113.0)
+		"s3_window":
+			if _near3(game.seg2.WINDOW_POS, 2.8):
+				_go("s4_escape")
+			else:
+				game.player.global_position = game.seg2.WINDOW_POS + Vector3(1.0, 0.3, 0)
+				_step_t = 99.0
+		"s4_ride":
+			game.seg4.s = maxf(game.seg4.s, game.seg4.s_end - 25.0)
+		"s5_enter":
+			game.player.global_position = Vector3(10, 19.3, 668)
+		"s5_server":
+			game.player.global_position = game.seg5.BREACH_POS + Vector3(0, 0.3, -1.8)
+		"s5_breach":
+			_breach_progress = 99.0
+		"s5_raskov":
+			for e in _wave + [_raskov]:
+				if is_instance_valid(e) and not e.dead():
+					e.take_hit(9999, e.eye(), Vector3.ZERO)
+		"s5_vault":
+			_vault_progress = 99.0
+			game.player.global_position = game.seg5.VAULT_POS + Vector3(0, 0.3, -2.0)
+		"s5_drive":
+			if _near3(game.seg5.DRIVE_POS, 2.2):
+				_go("end")
+			else:
+				game.player.global_position = game.seg5.DRIVE_POS + Vector3(0, -0.8, -1.2)
 
 
 # ------------------------------------------------------------------ segment 1
@@ -134,6 +316,207 @@ func _do_cut(delta: float) -> void:
 		_go("s1_sniper")
 
 
+# ------------------------------------------------------------------ segment 2 / 3
+
+func _spawn_segment2() -> void:
+	var seg2 = game.seg2
+	var lanes: Array = seg2.lanes
+	# Container maze patrols (walk along the lanes)
+	for i in [1, 4, 7, 10]:
+		if i < lanes.size():
+			var z: float = lanes[i]
+			game.spawn_enemy(Vector3(-50, 0, z), [Vector3(-58, 0, z), Vector3(-4, 0, z)], false, false, 0.0)
+	# Yard between the generators and the road
+	game.spawn_enemy(Vector3(2, 0, 150), [Vector3(2, 0, 150), Vector3(-6, 0, 170), Vector3(10, 0, 168)])
+	game.spawn_enemy(Vector3(26, 0, 70), [Vector3(26, 0, 60), Vector3(26, 0, 98)])   # loading bay
+	# Warehouse W1: floor + catwalk
+	game.spawn_enemy(Vector3(54, 0, 70), [Vector3(54, 0, 62), Vector3(54, 0, 94), Vector3(62, 0, 94)])
+	game.spawn_enemy(Vector3(50, 3.7, 76.8), [Vector3(40, 3.7, 76.8), Vector3(72, 3.7, 76.8)])
+	# Admin block: one per floor
+	game.spawn_enemy(Vector3(43, 0.1, 106), [], false, true, PI * 0.5)
+	game.spawn_enemy(Vector3(41, 3.7, 112), [Vector3(38, 3.7, 112), Vector3(44, 3.7, 102)])
+	game.spawn_enemy(Vector3(44, 7.3, 110), [], false, true, PI)
+
+
+func _do_download(delta: float) -> void:
+	var hud = game.hud
+	if not _near3(game.seg2.TERMINAL_POS, 2.6):
+		hud.prompt("Return to the terminal")
+		return
+	if Input.is_action_pressed("interact") and game.player.controls_enabled:
+		_dl_progress += delta / 7.0
+		hud.prompt("Downloading encrypted logs...  %d%%" % int(minf(_dl_progress, 1.0) * 100), _dl_progress)
+		if int((_dl_progress - delta / 7.0) * 10) != int(_dl_progress * 10):
+			S.play3d(game, "beep", game.seg2.TERMINAL_POS + Vector3(0, 1.2, -0.9), -8.0)
+	else:
+		hud.prompt("Hold  F  to download the encrypted logs" + ("  (%d%%)" % int(_dl_progress * 100) if _dl_progress > 0 else ""), _dl_progress if _dl_progress > 0 else -1.0)
+	if _dl_progress >= 0.5 and _dl_progress - delta / 7.0 < 0.5:
+		say(OVERWATCH, "Halfway. Something's spiking on the facility grid... keep going.", 0.0, true)
+	if _dl_progress >= 1.0:
+		_go("s3_blackout")
+
+
+func _do_catwalk_wave(delta: float) -> void:
+	# Four soldiers push through the catwalk door, calling signals as they come
+	var door: Vector3 = game.seg2.CATWALK_DOOR
+	var t := _step_t
+	var spawn_times := [2.0, 3.5, 7.0, 9.0]
+	var commands := ["MOVE UP!", "COVER ME!", "FLANK LEFT!", "GRENADE OUT!"]
+	while _wave_spawned < spawn_times.size() and t > spawn_times[_wave_spawned]:
+		var e = game.spawn_enemy(door + Vector3(randf_range(-0.5, 0.5), 0.2, -4.0 - _wave_spawned * 1.5), [], false, false, 0.0, "Vanguard")
+		e.health = 120.0
+		e.alert(game.player.global_position)
+		e.shout(commands[_wave_spawned])
+		_wave.append(e)
+		_wave_spawned += 1
+	_shout_t -= delta
+	if _shout_t <= 0.0 and _wave_spawned > 0:
+		_shout_t = randf_range(3.0, 5.0)
+		var alive := _wave.filter(func(e): return is_instance_valid(e) and not e.dead())
+		if alive.size() > 0:
+			alive.pick_random().shout(["PUSH! PUSH!", "HE'S BEHIND THE DESKS!", "RELOADING!", "HOLD THE DOOR!", "SUPPRESSING!"].pick_random())
+
+
+func _do_window(_delta: float) -> void:
+	var hud = game.hud
+	if _near3(game.seg2.WINDOW_POS, 2.8) and _step_t > 3.0:
+		hud.prompt("Press  F  to JUMP")
+		if Input.is_action_just_pressed("interact"):
+			_go("s4_escape")
+	elif _near3(game.seg2.WINDOW_POS, 2.8):
+		hud.prompt("Wait for the truck...")
+	else:
+		hud.prompt("")
+
+
+func _wave_dead(w: Array) -> bool:
+	return _alive_in(w) == 0
+
+
+func _alive_in(w: Array) -> int:
+	var n := 0
+	for e in w:
+		if is_instance_valid(e) and not e.dead():
+			n += 1
+	return n
+
+
+# ------------------------------------------------------------------ segment 4 / 5
+
+func on_seg4_event(name: String) -> void:
+	var hud = game.hud
+	match name:
+		"landed":
+			_go("s4_ride")
+		"gate":
+			hud.title("SEGMENT 4", "The Escape Vector     |     The Mountain Access Pass")
+			game.set_atmosphere("mountain")
+			game.seg2.stop_alarm()
+			say(OVERWATCH, "Hold on, gate!", 0.0, true)
+		"techs1":
+			say(OVERWATCH, "Technicals on our six! Light 'em up, Vance! Take out the gunners!", 0.5, true)
+		"bridge_warn":
+			say(OVERWATCH, "Bridge coming up. It's older than both of us. Hang on!", 0.0, true)
+		"techs2":
+			say(OVERWATCH, "Two more coming up fast behind us!", 0.0, true)
+		"tunnel":
+			say(OVERWATCH, "Tunnel's collapsed! Taking the old service road around it!", 0.0, true)
+		"roadblock_warn":
+			say(OVERWATCH, "Roadblock! That's Raskov's checkpoint. Get down, we're going through!", 0.0, true)
+			hud.hint("CROUCH!  (C)", 3.0)
+			var rb: Vector3 = game.seg4.pos_at(game.seg4.s_roadblock)
+			var f: Vector3 = game.seg4.dir_at(game.seg4.s_roadblock)
+			var left := Vector3.UP.cross(f).normalized()
+			for k in [-6.5, 6.5]:
+				var e = game.spawn_enemy(rb + left * k + f * 3.0 + Vector3(0, 0.5, 0), [], false, true, 0.0, "Checkpoint")
+				e.alert(game.player.global_position)
+		"bunker_gate":
+			game.seg5.smash_gate()
+			say(OVERWATCH, "Bunker gate! BRACE!", 0.0, true)
+		"crash":
+			_go("s5_enter")
+
+
+func _spawn_segment5() -> void:
+	var y := 19.1
+	game.spawn_enemy(Vector3(4, y, 612), [], false, true, PI).alert(game.player.global_position)
+	game.spawn_enemy(Vector3(16, y, 628), [], false, true, PI).alert(game.player.global_position)
+	game.spawn_enemy(Vector3(10, y, 652), [Vector3(10, y, 640), Vector3(10, y, 657)])
+	game.spawn_enemy(Vector3(31, y, 640), [Vector3(31, y, 622), Vector3(31, y, 656)])
+	game.spawn_enemy(Vector3(-6, y, 670), [Vector3(-6, y, 664), Vector3(-6, y, 688)])
+	game.spawn_enemy(Vector3(12, y, 680), [Vector3(8, y, 668), Vector3(14, y, 688)])
+	game.spawn_enemy(Vector3(24, y, 684), [Vector3(20, y, 666), Vector3(28, y, 688)])
+	game.spawn_enemy(Vector3(-9, 22.1, 690.5), [], false, true, 0.0)
+
+
+func _do_breach(delta: float) -> void:
+	var hud = game.hud
+	if _breach_armed:
+		return
+	if not _near3(game.seg5.BREACH_POS + Vector3(0, 0, -1.5), 3.2):
+		hud.prompt("")
+		return
+	if Input.is_action_pressed("interact") and game.player.controls_enabled:
+		_breach_progress += delta / 2.5
+		hud.prompt("Planting breaching charge...", _breach_progress)
+	else:
+		hud.prompt("Hold  F  to plant the breaching charge", _breach_progress if _breach_progress > 0 else -1.0)
+	if _breach_progress >= 1.0:
+		_breach_armed = true
+		hud.prompt("")
+		hud.hint("STAND BACK", 2.5)
+		for i in 3:
+			get_tree().create_timer(0.6 + i * 0.6).timeout.connect(func(): S.play3d(game, "beep", game.seg5.BREACH_POS + Vector3(0, 1.2, 0), 0.0))
+		get_tree().create_timer(2.4).timeout.connect(_breach_go)
+
+
+func _breach_go() -> void:
+	game.seg5.blow_breach_door()
+	game.player.add_shake(1.5)
+	game.slow_motion(0.35, 2.5)
+	_wave = []
+	var cy := 22.1
+	for p in [Vector3(-4, cy, 697), Vector3(6, cy, 698), Vector3(14, cy, 700)]:
+		var e = game.spawn_enemy(p, [], false, false, PI, "Guard")
+		e.health = 130.0
+		e.alert(game.player.global_position)
+		_wave.append(e)
+	_raskov = game.spawn_enemy(Vector3(10, cy, 703), [], false, false, PI, "Raskov")
+	_raskov.health = 650.0
+	_raskov.body.scale = Vector3(1.08, 1.08, 1.08)
+	for c in _raskov.body.get_children():
+		if c is MeshInstance3D and c.position.y > 1.6:
+			c.material_override = M_red()
+	_raskov.alert(game.player.global_position)
+	get_tree().create_timer(0.8).timeout.connect(func():
+		if is_instance_valid(_raskov):
+			_raskov.shout("YOU'RE TOO LATE, MAJOR!"))
+	_go("s5_raskov")
+
+
+func M_red() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.5, 0.08, 0.06)
+	m.roughness = 0.8
+	return m
+
+
+func _do_vault(delta: float) -> void:
+	var hud = game.hud
+	if not _near3(game.seg5.VAULT_POS + Vector3(0, 0, -1.2), 3.0):
+		hud.prompt("")
+		if _vault_progress < 99.0:
+			return
+	if Input.is_action_pressed("interact") and game.player.controls_enabled:
+		_vault_progress += delta / 3.0
+		hud.prompt("Overriding vault lock...", _vault_progress)
+	elif _vault_progress < 1.0:
+		hud.prompt("Hold  F  to override the vault lock", _vault_progress if _vault_progress > 0 else -1.0)
+	if _vault_progress >= 1.0:
+		game.seg5.open_vault()
+		_go("s5_drive")
+
+
 # ------------------------------------------------------------------ events
 
 func on_alert(_enemy) -> void:
@@ -144,7 +527,9 @@ func on_alert(_enemy) -> void:
 
 
 func on_enemy_killed(enemy) -> void:
-	if enemy == game.seg1.sniper:
+	if enemy == game.seg1.sniper or enemy == _raskov:
+		if enemy == _raskov:
+			game.hud.hint("RASKOV NEUTRALIZED", 3.0)
 		return
 	if _kill_lines < 4 and randf() < 0.6:
 		var lines := ["Tango down.", "Good kill.", "He's down. Keep moving.", "Clean. Nobody saw that."]
@@ -153,12 +538,21 @@ func on_enemy_killed(enemy) -> void:
 
 
 func on_respawn() -> void:
-	say(OVERWATCH, "Vance, you still with me? ...Okay. Take it slower this time.", 1.0, true)
+	if step.begins_with("s4"):
+		say(OVERWATCH, "Vance! Stay down in the bed, I've got you!", 0.5, true)
+	else:
+		say(OVERWATCH, "Vance, you still with me? ...Okay. Take it slower this time.", 1.0, true)
 
 
 # ------------------------------------------------------------------ radio
 
-func say(speaker: String, text: String, delay := 0.4, priority := false) -> void:
+func say(speaker: String, text: String, delay := 0.4, priority := false, jammed := false) -> void:
+	if jammed:
+		var chars := text.split("")
+		for i in chars.size():
+			if chars[i] != " " and randf() < 0.22:
+				chars[i] = ["#", "-", "~", "/"].pick_random()
+		text = "".join(chars)
 	var entry := {"speaker": speaker, "text": text, "delay": delay}
 	if priority:
 		_radio_queue.push_front(entry)
@@ -186,6 +580,10 @@ func _process_radio(delta: float) -> void:
 func _near(pos: Vector3, dist: float) -> bool:
 	var p: Vector3 = game.player.global_position
 	return Vector2(p.x - pos.x, p.z - pos.z).length() < dist
+
+
+func _near3(pos: Vector3, dist: float) -> bool:
+	return game.player.global_position.distance_to(pos) < dist
 
 
 func _marker(pos: Vector3, up: float) -> Vector3:

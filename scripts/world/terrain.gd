@@ -49,6 +49,9 @@ func height_at(x: float, z: float) -> float:
 	var edge_x := maxf(0.0, absf(x) - 85.0) / 45.0
 	var edge_z := maxf(0.0, Z_MIN + 40.0 - z) / 40.0 + maxf(0.0, z - (Z_MAX - 30.0)) / 30.0
 	var edge := clampf(maxf(edge_x, edge_z), 0.0, 1.0)
+	# The exit road cuts a pass through the northern mountains
+	if z > 150.0:
+		edge *= clampf((absf(x - 15.0) - 9.0) / 12.0, 0.0, 1.0)
 	h += edge * edge * (32.0 + noise.get_noise_2d(x * 0.5, z * 0.5) * 10.0)
 	return h
 
