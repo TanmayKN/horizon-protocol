@@ -1,0 +1,409 @@
+extends CanvasLayer
+## On-screen HUD: objectives, radio subtitles, crosshair, ammo, health, detection, damage, mud.
+
+var game
+var _objective: Label
+var _radio_name: Label
+var _radio_text: Label
+var _radio_panel: PanelContainer
+var _title: Label
+var _subtitle: Label
+var _hint: Label
+var _prompt: Label
+var _prompt_bar: ProgressBar
+var _ammo: Label
+var _health_bar: ProgressBar
+var _stamina_bar: ProgressBar
+var _stance: Label
+var _detect: ProgressBar
+var _detect_label: Label
+var _click: Label
+var _vignette: TextureRect
+var _fade: ColorRect
+var _hitmarker: Label
+var _cross: Control
+var _marker: Label
+var _mud_layer: Control
+var _dmg_arrow: Label
+var _ammo_panel: Control
+
+var _radio_hide := 0.0
+var _hint_hide := 0.0
+var _title_t := -1.0
+var _vig := 0.0
+var _hit_t := 0.0
+var _marker_pos = null
+var _dmg_from := Vector3.ZERO
+var _dmg_t := 0.0
+var _mud_tex: Texture2D
+var _t := 0.0
+
+
+func _ready() -> void:
+	layer = 5
+	_vignette = TextureRect.new()
+	_vignette.texture = _radial_tex(Color(0.6, 0.0, 0.0, 0.0), Color(0.6, 0.0, 0.0, 0.85))
+	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vignette.modulate.a = 0.0
+	add_child(_vignette)
+	# Subtle permanent dark vignette for mood
+	var mood := TextureRect.new()
+	mood.texture = _radial_tex(Color(0, 0, 0, 0), Color(0, 0, 0, 0.55))
+	mood.set_anchors_preset(Control.PRESET_FULL_RECT)
+	mood.stretch_mode = TextureRect.STRETCH_SCALE
+	mood.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(mood)
+
+	_mud_layer = Control.new()
+	_mud_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_mud_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_mud_layer)
+	_mud_tex = _blob_tex()
+
+	_objective = _label("", 19, Color(0.92, 0.92, 0.86))
+	_place(_objective, Control.PRESET_TOP_LEFT, 28, 22, 800, 50)
+
+	_detect = ProgressBar.new()
+	_detect.show_percentage = false
+	_detect.max_value = 1.0
+	_place(_detect, Control.PRESET_CENTER_TOP, -90, 70, 90, 76)
+	_style_bar(_detect, Color(1, 0.8, 0.2))
+	_detect_label = _label("", 13, Color(1, 0.85, 0.3))
+	_place(_detect_label, Control.PRESET_CENTER_TOP, -150, 78, 150, 98)
+	_detect_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	_title = _label("", 46, Color(0.95, 0.95, 0.9))
+	_place(_title, Control.PRESET_CENTER, -600, -120, 600, -60)
+	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_subtitle = _label("", 20, Color(0.75, 0.8, 0.8))
+	_place(_subtitle, Control.PRESET_CENTER, -600, -55, 600, -20)
+	_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	_radio_panel = PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0, 0, 0, 0.45)
+	sb.content_margin_left = 14
+	sb.content_margin_right = 14
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	sb.corner_radius_top_left = 4
+	sb.corner_radius_top_right = 4
+	sb.corner_radius_bottom_left = 4
+	sb.corner_radius_bottom_right = 4
+	_radio_panel.add_theme_stylebox_override("panel", sb)
+	_place(_radio_panel, Control.PRESET_CENTER_BOTTOM, -430, -150, 430, -80)
+	var vb := VBoxContainer.new()
+	_radio_panel.add_child(vb)
+	_radio_name = _label("", 14, Color(0.5, 0.95, 0.55), vb)
+	_radio_text = _label("", 18, Color(0.92, 0.95, 0.9), vb)
+	_radio_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_radio_panel.modulate.a = 0.0
+
+	_hint = _label("", 18, Color(1, 0.9, 0.6))
+	_place(_hint, Control.PRESET_CENTER, -400, 120, 400, 150)
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	_prompt = _label("", 20, Color.WHITE)
+	_place(_prompt, Control.PRESET_CENTER, -300, 50, 300, 80)
+	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt_bar = ProgressBar.new()
+	_prompt_bar.show_percentage = false
+	_prompt_bar.max_value = 1.0
+	_place(_prompt_bar, Control.PRESET_CENTER, -120, 84, 120, 92)
+	_style_bar(_prompt_bar, Color(0.9, 0.9, 0.9))
+	_prompt_bar.visible = false
+
+	_cross = Control.new()
+	_cross.set_anchors_preset(Control.PRESET_CENTER)
+	_cross.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_cross)
+	for i in 4:
+		var r := ColorRect.new()
+		r.color = Color(1, 1, 1, 0.85)
+		r.size = Vector2(2, 9) if i < 2 else Vector2(9, 2)
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_cross.add_child(r)
+	var dot := ColorRect.new()
+	dot.color = Color(1, 1, 1, 0.9)
+	dot.size = Vector2(2, 2)
+	dot.position = Vector2(-1, -1)
+	_cross.add_child(dot)
+
+	_hitmarker = _label("X", 26, Color(1, 1, 1))
+	_place(_hitmarker, Control.PRESET_CENTER, -20, -19, 20, 19)
+	_hitmarker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hitmarker.modulate.a = 0.0
+
+	_marker = _label("", 15, Color(1, 0.85, 0.35))
+	_marker.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_marker.size = Vector2(120, 40)
+
+	_dmg_arrow = _label("^", 40, Color(1, 0.2, 0.15))
+	_dmg_arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_dmg_arrow.size = Vector2(40, 50)
+	_dmg_arrow.pivot_offset = Vector2(20, 25)
+	_dmg_arrow.modulate.a = 0.0
+
+	# Bottom-left: health, stamina, stance
+	_health_bar = ProgressBar.new()
+	_health_bar.show_percentage = false
+	_health_bar.max_value = 100
+	_place(_health_bar, Control.PRESET_BOTTOM_LEFT, 28, -64, 258, -54)
+	_style_bar(_health_bar, Color(0.85, 0.9, 0.85))
+	_stamina_bar = ProgressBar.new()
+	_stamina_bar.show_percentage = false
+	_stamina_bar.max_value = 6.0
+	_place(_stamina_bar, Control.PRESET_BOTTOM_LEFT, 28, -48, 258, -44)
+	_style_bar(_stamina_bar, Color(0.5, 0.75, 1.0))
+	_stance = _label("", 14, Color(0.8, 0.85, 0.9))
+	_place(_stance, Control.PRESET_BOTTOM_LEFT, 28, -36, 600, -14)
+
+	_ammo = _label("", 30, Color(0.95, 0.95, 0.9))
+	_place(_ammo, Control.PRESET_BOTTOM_RIGHT, -260, -70, -28, -30)
+	_ammo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+
+	_click = _label("CLICK TO PLAY", 40, Color.WHITE)
+	_place(_click, Control.PRESET_CENTER, -300, -30, 300, 30)
+	_click.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	_fade = ColorRect.new()
+	_fade.color = Color(0, 0, 0, 1)
+	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_fade)
+
+
+func _process(delta: float) -> void:
+	_t += delta
+	var p = game.player if game else null
+	if p == null:
+		return
+
+	# Radio / hint fade
+	if _t > _radio_hide:
+		_radio_panel.modulate.a = move_toward(_radio_panel.modulate.a, 0.0, delta * 2.5)
+	if _t > _hint_hide:
+		_hint.modulate.a = move_toward(_hint.modulate.a, 0.0, delta * 2.0)
+
+	# Title card
+	if _title_t >= 0.0:
+		_title_t += delta
+		var a := clampf(_title_t / 1.0, 0.0, 1.0) * clampf((6.0 - _title_t) / 1.5, 0.0, 1.0)
+		_title.modulate.a = a
+		_subtitle.modulate.a = a
+		if _title_t > 6.0:
+			_title_t = -1.0
+
+	# Crosshair
+	var spread: float = p.weapon.spread
+	var gap := 6.0 + spread * 9.0
+	var bars := _cross.get_children()
+	bars[0].position = Vector2(-1, -gap - 9)
+	bars[1].position = Vector2(-1, gap)
+	bars[2].position = Vector2(-gap - 9, -1)
+	bars[3].position = Vector2(gap, -1)
+	_cross.modulate.a = move_toward(_cross.modulate.a, 0.0 if (p.aiming or p.sprinting) else 1.0, delta * 8.0)
+
+	_hit_t -= delta
+	_hitmarker.modulate.a = clampf(_hit_t / 0.15, 0.0, 1.0)
+
+	# Ammo / health / stamina
+	var w = p.weapon
+	_ammo.text = ("RELOADING" if w.reloading else "%d / %d" % [w.ammo, w.reserve])
+	_ammo.modulate = Color(1, 0.4, 0.3) if w.ammo <= 5 and not w.reloading else Color.WHITE
+	_health_bar.value = p.health
+	_stamina_bar.value = p.stamina
+	_stamina_bar.modulate.a = 1.0 if p.stamina < 5.9 else 0.3
+	var names := ["STANDING", "CROUCHED", "PRONE  -  Space to stand"]
+	_stance.text = names[p.stance] + ("   |   MUD" if p.in_mud else "")
+
+	# Damage vignette
+	var low := clampf(1.0 - p.health / 60.0, 0.0, 1.0)
+	_vig = maxf(0.0, _vig - delta * 1.2)
+	_vignette.modulate.a = maxf(_vig, low * 0.7)
+	_dmg_t -= delta
+	if _dmg_t > 0.0:
+		var to: Vector3 = _dmg_from - p.global_position
+		var local: Vector3 = p.global_transform.basis.inverse() * to
+		var ang := atan2(local.x, -local.z)
+		var vp := get_viewport().get_visible_rect().size
+		_dmg_arrow.position = vp * 0.5 + Vector2(sin(ang), -cos(ang)) * 140.0 - Vector2(20, 25)
+		_dmg_arrow.rotation = ang
+		_dmg_arrow.modulate.a = clampf(_dmg_t, 0.0, 1.0)
+	else:
+		_dmg_arrow.modulate.a = 0.0
+
+	# Detection meter
+	var aw: float = game.max_awareness()
+	_detect.value = aw
+	_detect.visible = aw > 0.02
+	var col := Color(1, 0.85, 0.2) if aw < 1.0 else Color(1, 0.2, 0.15)
+	_detect.modulate = col
+	_detect_label.modulate = col
+	_detect_label.text = "" if aw < 0.02 else ("ALERTED" if aw >= 1.0 else "BEING NOTICED")
+
+	# Objective marker
+	if _marker_pos != null and not p.is_dead:
+		var cam: Camera3D = p.camera
+		var mp: Vector3
+		if _marker_pos is Node3D:
+			if not is_instance_valid(_marker_pos):
+				_marker_pos = null
+				return
+			mp = _marker_pos.global_position + Vector3(0, 2.1, 0)
+		else:
+			mp = _marker_pos
+		if not cam.is_position_behind(mp):
+			var sp := cam.unproject_position(mp)
+			_marker.visible = true
+			_marker.position = sp - Vector2(60, 20)
+			_marker.text = "◆\n%dm" % int(p.global_position.distance_to(mp))
+		else:
+			_marker.visible = false
+	else:
+		_marker.visible = false
+
+	_click.visible = Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not get_tree().paused and not p.is_dead
+
+	# Mud blobs fade
+	for blob in _mud_layer.get_children():
+		blob.modulate.a -= delta * 0.12
+		if blob.modulate.a <= 0.0:
+			blob.queue_free()
+
+
+# ------------------------------------------------------------------ API
+
+func set_objective(text: String, marker = null) -> void:
+	_objective.text = ("OBJECTIVE:  " + text) if text != "" else ""
+	_marker_pos = marker
+
+
+func radio(speaker: String, text: String, duration := 5.5) -> void:
+	_radio_name.text = speaker.to_upper()
+	_radio_name.modulate = Color(0.5, 0.95, 0.55) if speaker != "Vance" else Color(0.55, 0.8, 1.0)
+	_radio_text.text = text
+	_radio_panel.modulate.a = 1.0
+	_radio_hide = _t + duration
+
+
+func title(line1: String, line2: String) -> void:
+	_title.text = line1
+	_subtitle.text = line2
+	_title_t = 0.0
+
+
+func hint(text: String, duration := 3.0) -> void:
+	_hint.text = text
+	_hint.modulate.a = 1.0
+	_hint_hide = _t + duration
+
+
+func prompt(text: String, progress := -1.0) -> void:
+	_prompt.text = text
+	_prompt_bar.visible = progress >= 0.0
+	_prompt_bar.value = maxf(progress, 0.0)
+
+
+func hitmarker() -> void:
+	_hit_t = 0.18
+
+
+func damage(from_pos: Vector3, amount: float) -> void:
+	_vig = clampf(_vig + amount / 30.0, 0.0, 1.0)
+	_dmg_from = from_pos
+	_dmg_t = 1.5
+
+
+func mud_splash() -> void:
+	var vp := get_viewport().get_visible_rect().size
+	for i in randi_range(1, 3):
+		var r := TextureRect.new()
+		r.texture = _mud_tex
+		var s := randf_range(60, 180)
+		r.size = Vector2(s, s * randf_range(0.6, 1.1))
+		r.stretch_mode = TextureRect.STRETCH_SCALE
+		# Splashes land near the bottom and edges of the screen
+		var edge := randi() % 3
+		match edge:
+			0: r.position = Vector2(randf_range(0, vp.x - s), vp.y - s * randf_range(0.3, 0.9))
+			1: r.position = Vector2(randf_range(-s * 0.4, s * 0.3), randf_range(vp.y * 0.3, vp.y - s))
+			2: r.position = Vector2(vp.x - s * randf_range(0.5, 1.0), randf_range(vp.y * 0.3, vp.y - s))
+		r.rotation = randf() * TAU
+		r.modulate = Color(1, 1, 1, randf_range(0.6, 0.9))
+		r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_mud_layer.add_child(r)
+
+
+func fade_to(alpha: float, time: float) -> void:
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", alpha, time)
+
+
+func flash_red(alpha: float) -> void:
+	_vig = maxf(_vig, alpha)
+
+
+# ------------------------------------------------------------------ helpers
+
+func _label(text: String, size: int, color: Color, parent: Node = null) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.85))
+	l.add_theme_constant_override("shadow_offset_x", 2)
+	l.add_theme_constant_override("shadow_offset_y", 2)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	(parent if parent else self).add_child(l)
+	return l
+
+
+func _place(c: Control, preset: Control.LayoutPreset, l: float, t: float, r: float, b: float) -> void:
+	if c.get_parent() == null:
+		add_child(c)
+	c.set_anchors_preset(preset)
+	c.offset_left = l
+	c.offset_top = t
+	c.offset_right = r
+	c.offset_bottom = b
+
+
+func _style_bar(bar: ProgressBar, color: Color) -> void:
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0, 0, 0, 0.45)
+	var fg := StyleBoxFlat.new()
+	fg.bg_color = color
+	bar.add_theme_stylebox_override("background", bg)
+	bar.add_theme_stylebox_override("fill", fg)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+func _radial_tex(inner: Color, outer: Color) -> GradientTexture2D:
+	var g := Gradient.new()
+	g.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
+	g.colors = PackedColorArray([inner, inner, outer])
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(1.05, 1.05)
+	t.width = 256
+	t.height = 256
+	return t
+
+
+func _blob_tex() -> ImageTexture:
+	var s := 128
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	var n := FastNoiseLite.new()
+	n.frequency = 0.05
+	for x in s:
+		for y in s:
+			var d := Vector2(x - s / 2.0, y - s / 2.0).length() / (s / 2.0)
+			var v := 1.0 - d + n.get_noise_2d(x, y) * 0.6
+			var a := clampf((v - 0.25) * 3.0, 0.0, 1.0)
+			img.set_pixel(x, y, Color(0.22, 0.15, 0.08, a * 0.9))
+	return ImageTexture.create_from_image(img)

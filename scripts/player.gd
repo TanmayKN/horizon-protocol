@@ -1,115 +1,312 @@
 extends CharacterBody3D
-## Major Elena Vance - first-person controller.
-## Controls: WASD move, Mouse look, Shift sprint, C crouch, Z prone,
-## Space jump / stand up, Esc free mouse, click to recapture.
+## Major Elena Vance — first-person controller.
+## WASD move | Mouse look | Shift sprint | C crouch (while sprinting = slide) | Z prone
+## Space jump/stand | Q/E lean | LMB fire | RMB aim | R reload | F interact | Esc free mouse
+
+const S := preload("res://scripts/sfx.gd")
+const WeaponScript := preload("res://scripts/weapon.gd")
 
 enum Stance { STAND, CROUCH, PRONE }
 
-const EYE_HEIGHT := { Stance.STAND: 1.6, Stance.CROUCH: 1.0, Stance.PRONE: 0.35 }
+const EYE_HEIGHT := { Stance.STAND: 1.62, Stance.CROUCH: 1.05, Stance.PRONE: 0.35 }
 const BODY_HEIGHT := { Stance.STAND: 1.8, Stance.CROUCH: 1.2, Stance.PRONE: 0.6 }
-const SPEED := { Stance.STAND: 4.0, Stance.CROUCH: 2.2, Stance.PRONE: 1.6 }
-const SPRINT_SPEED := 7.0
-const MUD_MULTIPLIER := 0.55
-const JUMP_VELOCITY := 4.5
-const MOUSE_SENS := 0.0025
+const SPEED := { Stance.STAND: 4.2, Stance.CROUCH: 2.3, Stance.PRONE: 1.3 }
+const STEP_LENGTH := { Stance.STAND: 2.0, Stance.CROUCH: 1.5, Stance.PRONE: 1.1 }
+const SPRINT_SPEED := 7.2
+const MUD_MULTIPLIER := 0.6
+const JUMP_VELOCITY := 4.6
+const MOUSE_SENS := 0.0022
+const MAX_STAMINA := 6.0
+const MAX_HEALTH := 100.0
 
+signal died
+
+var game                      # game.gd (set by game)
 var stance: Stance = Stance.PRONE
-var mud_check: Callable          # set by the level: func(pos: Vector3) -> bool
+var surface_check: Callable   # func(pos: Vector3) -> String  ("grass", "mud", "hard", "metal")
+var surface := "grass"
 var in_mud := false
-var key_events := 0   # diagnostics: keyboard events that reached the game
+var key_events := 0
 
-var head: Node3D
+var controls_enabled := true  # false during scripted moments
+var move_enabled := true      # false while riding the truck (can still look + shoot)
+var health := MAX_HEALTH
+var stamina := MAX_STAMINA
+var is_dead := false
+var aiming := false
+var sprinting := false
+var noise_level := 0.0        # how loud the player is right now (0..1), used by enemy AI
+
+var head: Node3D              # pitch
+var cam_holder: Node3D        # lean / bob / shake / roll
 var camera: Camera3D
+var weapon                    # weapon.gd
 var capsule: CapsuleShape3D
 var col: CollisionShape3D
-var _bob_time := 0.0
+
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
+var _bob_time := 0.0
+var _step_dist := 0.0
+var _lean := 0.0
+var _slide_time := 0.0
+var _slide_dir := Vector3.ZERO
+var _land_dip := 0.0
+var _was_on_floor := true
+var _fall_speed := 0.0
+var _shake := 0.0
+var _recoil := Vector2.ZERO   # visual kick (pitch, yaw) that springs back
+var _since_damage := 99.0
+var _stamina_lock := false
+var _mud_splash_timer := 0.0
 
 
 func _ready() -> void:
-	_setup_inputs()
 	capsule = CapsuleShape3D.new()
-	capsule.radius = 0.3
+	capsule.radius = 0.32
 	col = CollisionShape3D.new()
 	col.shape = capsule
 	add_child(col)
 
 	head = Node3D.new()
 	add_child(head)
+	cam_holder = Node3D.new()
+	head.add_child(cam_holder)
 	camera = Camera3D.new()
 	camera.fov = 75.0
-	camera.near = 0.05
-	head.add_child(camera)
+	camera.near = 0.02
+	camera.far = 900.0
+	cam_holder.add_child(camera)
 	camera.current = true
+
+	weapon = Node3D.new()
+	weapon.set_script(WeaponScript)
+	weapon.player = self
+	camera.add_child(weapon)
 
 	_apply_stance(true)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+# ------------------------------------------------------------------ input
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		key_events += 1
-		# Any key press also grabs the mouse so looking around works right away
-		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not event.is_action("ui_cancel"):
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not event.is_action("ui_cancel") and not get_tree().paused:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if is_dead:
+		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		rotate_y(-event.relative.x * MOUSE_SENS)
-		head.rotate_x(-event.relative.y * MOUSE_SENS)
-		head.rotation.x = clampf(head.rotation.x, deg_to_rad(-85), deg_to_rad(85))
-	elif event is InputEventMouseButton and event.pressed:
+		var sens := MOUSE_SENS * (0.55 if aiming else 1.0)
+		rotate_y(-event.relative.x * sens)
+		head.rotate_x(-event.relative.y * sens)
+		head.rotation.x = clampf(head.rotation.x, deg_to_rad(-86), deg_to_rad(86))
+		if weapon:
+			weapon.add_sway(event.relative)
+	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_cancel"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif not controls_enabled or not move_enabled:
+		return
 	elif event.is_action_pressed("crouch"):
-		_set_stance(Stance.STAND if stance == Stance.CROUCH else Stance.CROUCH)
+		if sprinting and is_on_floor() and _slide_time <= 0.0:
+			_start_slide()
+		else:
+			_set_stance(Stance.STAND if stance == Stance.CROUCH else Stance.CROUCH)
 	elif event.is_action_pressed("prone"):
 		_set_stance(Stance.STAND if stance == Stance.PRONE else Stance.PRONE)
 
 
+# ------------------------------------------------------------------ physics
+
 func _physics_process(delta: float) -> void:
+	if is_dead:
+		velocity.x = move_toward(velocity.x, 0, 20 * delta)
+		velocity.z = move_toward(velocity.z, 0, 20 * delta)
+		velocity.y -= _gravity * delta
+		move_and_slide()
+		return
+
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
+		_fall_speed = maxf(_fall_speed, -velocity.y)
 
-	if Input.is_action_just_pressed("jump"):
-		if stance != Stance.STAND:
-			_set_stance(Stance.STAND)
-		elif is_on_floor():
-			velocity.y = JUMP_VELOCITY
-
-	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var can_move := controls_enabled and move_enabled
+	var input_dir := Vector2.ZERO
+	if can_move:
+		input_dir = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		if Input.is_action_just_pressed("jump"):
+			if stance != Stance.STAND:
+				_set_stance(Stance.STAND)
+			elif is_on_floor():
+				velocity.y = JUMP_VELOCITY
 	var dir := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
+	aiming = controls_enabled and Input.is_action_pressed("aim") and not weapon.reloading
+
+	# Surface + sprint + stamina
+	surface = surface_check.call(global_position) if surface_check.is_valid() else "grass"
+	in_mud = surface == "mud"
+	var wants_sprint := can_move and Input.is_action_pressed("sprint") and input_dir.y < -0.1 and not aiming
+	if wants_sprint and stance != Stance.STAND and _slide_time <= 0.0:
+		_set_stance(Stance.STAND)   # sprinting stands you up
+	sprinting = wants_sprint and stance == Stance.STAND and not _stamina_lock and stamina > 0.0
+	if sprinting and input_dir.length() > 0.1:
+		stamina = maxf(0.0, stamina - delta)
+		if stamina <= 0.0:
+			_stamina_lock = true
+	else:
+		stamina = minf(MAX_STAMINA, stamina + delta * 0.9)
+		if stamina > 1.5:
+			_stamina_lock = false
+
 	var speed: float = SPEED[stance]
-	if stance == Stance.STAND and Input.is_action_pressed("sprint"):
+	if sprinting:
 		speed = SPRINT_SPEED
-	in_mud = mud_check.is_valid() and mud_check.call(global_position)
+	if aiming:
+		speed *= 0.6
 	if in_mud:
 		speed *= MUD_MULTIPLIER
 
-	var accel := 10.0 if is_on_floor() else 3.0
-	velocity.x = lerp(velocity.x, dir.x * speed, accel * delta)
-	velocity.z = lerp(velocity.z, dir.z * speed, accel * delta)
+	# Slide overrides normal movement
+	if _slide_time > 0.0:
+		_slide_time -= delta
+		var slide_speed := lerpf(3.0, 9.5, clampf(_slide_time / 0.8, 0.0, 1.0))
+		velocity.x = _slide_dir.x * slide_speed
+		velocity.z = _slide_dir.z * slide_speed
+	else:
+		var accel := 12.0 if dir.length() > 0.0 else 14.0
+		if not is_on_floor():
+			accel = 2.5
+		velocity.x = lerpf(velocity.x, dir.x * speed, clampf(accel * delta, 0.0, 1.0))
+		velocity.z = lerpf(velocity.z, dir.z * speed, clampf(accel * delta, 0.0, 1.0))
+
 	move_and_slide()
 
-	# Smooth eye height + head bob
-	var target_eye: float = EYE_HEIGHT[stance]
+	# Landing
+	if is_on_floor() and not _was_on_floor:
+		_land_dip = clampf(_fall_speed * 0.035, 0.03, 0.3)
+		_play_step(clampf(_fall_speed / 6.0, 0.3, 1.0) * 6.0)
+		if _fall_speed > 14.0:
+			take_damage((_fall_speed - 14.0) * 8.0, global_position)
+		_fall_speed = 0.0
+	_was_on_floor = is_on_floor()
+
+	# Footsteps
 	var horizontal := Vector2(velocity.x, velocity.z).length()
+	if is_on_floor() and horizontal > 0.4 and _slide_time <= 0.0:
+		_step_dist += horizontal * delta
+		var step_len: float = STEP_LENGTH[stance] * (1.25 if sprinting else 1.0)
+		if _step_dist > step_len:
+			_step_dist = 0.0
+			_play_step(0.0)
+	noise_level = 0.0
+	if horizontal > 0.4:
+		noise_level = {Stance.STAND: 0.5, Stance.CROUCH: 0.2, Stance.PRONE: 0.08}[stance]
+		if sprinting:
+			noise_level = 1.0
+
+	# Mud splashes on screen / weapon when moving through mud
+	if in_mud and horizontal > 1.0:
+		_mud_splash_timer -= delta * (2.0 if sprinting else 1.0)
+		if _mud_splash_timer <= 0.0:
+			_mud_splash_timer = randf_range(0.5, 1.4)
+			if game:
+				game.hud.mud_splash()
+			weapon.add_mud()
+
+	# Health regen
+	_since_damage += delta
+	if _since_damage > 5.0 and health < MAX_HEALTH:
+		health = minf(MAX_HEALTH, health + 14.0 * delta)
+
+	if global_position.y < -40.0:
+		take_damage(999, global_position)
+
+	_update_camera(delta, input_dir, horizontal)
+
+
+func _update_camera(delta: float, input_dir: Vector2, horizontal: float) -> void:
+	# Lean (Q/E) with wall check
+	var lean_target := 0.0
+	if controls_enabled and stance != Stance.PRONE:
+		lean_target = Input.get_axis("lean_left", "lean_right")
+	if lean_target != 0.0:
+		var side := global_transform.basis.x * signf(lean_target)
+		var from := head.global_position
+		var q := PhysicsRayQueryParameters3D.create(from, from + side * 0.7)
+		q.exclude = [get_rid()]
+		if not get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			lean_target = 0.0
+	_lean = lerpf(_lean, lean_target, clampf(10.0 * delta, 0.0, 1.0))
+
+	# Head bob
 	if is_on_floor() and horizontal > 0.5:
-		_bob_time += delta * horizontal * 2.2
-	var bob: float = sin(_bob_time) * 0.04 * clampf(horizontal / 4.0, 0.0, 1.0)
-	head.position.y = lerp(head.position.y, target_eye + bob, 12.0 * delta)
+		_bob_time += delta * horizontal * (1.9 if stance == Stance.STAND else 2.6)
+	var bob_amt := clampf(horizontal / 4.0, 0.0, 1.3) * (0.35 if aiming else 1.0)
+	var bob_y := sin(_bob_time * 2.0) * 0.035 * bob_amt
+	var bob_x := sin(_bob_time) * 0.025 * bob_amt
+
+	_land_dip = lerpf(_land_dip, 0.0, clampf(8.0 * delta, 0.0, 1.0))
+	var eye: float = EYE_HEIGHT[stance]
+	if _slide_time > 0.0:
+		eye = 0.85
+	head.position.y = lerpf(head.position.y, eye, clampf(10.0 * delta, 0.0, 1.0))
+
+	# Shake
+	_shake = maxf(0.0, _shake - delta * 2.5)
+	var sh := Vector3(randf_range(-1, 1), randf_range(-1, 1), 0) * _shake * 0.04
+
+	cam_holder.position = Vector3(_lean * 0.42 + bob_x, bob_y - _land_dip, 0) + sh
+
+	# Recoil springs back
+	_recoil = _recoil.lerp(Vector2.ZERO, clampf(9.0 * delta, 0.0, 1.0))
+	var roll := -_lean * 13.0 - input_dir.x * 1.6
+	if _slide_time > 0.0:
+		roll += 6.0
+	cam_holder.rotation_degrees = Vector3(_recoil.x, _recoil.y, lerpf(cam_holder.rotation_degrees.z, roll, clampf(10.0 * delta, 0.0, 1.0)))
+
+	# FOV
+	var fov := 75.0
+	if sprinting and horizontal > 3.0:
+		fov = 82.0
+	if _slide_time > 0.0:
+		fov = 86.0
+	if aiming:
+		fov = weapon.ads_fov()
+	camera.fov = lerpf(camera.fov, fov, clampf(10.0 * delta, 0.0, 1.0))
 
 
-func eye_position() -> Vector3:
-	return camera.global_position
+# ------------------------------------------------------------------ actions
+
+func _start_slide() -> void:
+	_slide_time = 0.8
+	_slide_dir = Vector3(velocity.x, 0, velocity.z).normalized()
+	stance = Stance.CROUCH
+	_apply_stance(false)
+	S.play3d(self, "step_mud" if in_mud else "step_grass", global_position, 2.0)
 
 
 func _set_stance(new_stance: Stance) -> void:
+	if new_stance == stance:
+		return
+	# Can't stand up under something low
+	if BODY_HEIGHT[new_stance] > BODY_HEIGHT[stance]:
+		var from := global_position + Vector3.UP * 0.3
+		var q := PhysicsRayQueryParameters3D.create(from, from + Vector3.UP * (BODY_HEIGHT[new_stance] - 0.2))
+		q.exclude = [get_rid()]
+		if not get_world_3d().direct_space_state.intersect_ray(q).is_empty():
+			if game:
+				game.hud.hint("Not enough room to stand")
+			return
 	stance = new_stance
 	_apply_stance(false)
+	S.play3d(self, "step_grass", global_position, -8.0)
 
 
 func _apply_stance(instant: bool) -> void:
@@ -119,16 +316,62 @@ func _apply_stance(instant: bool) -> void:
 		head.position.y = EYE_HEIGHT[stance]
 
 
-func _setup_inputs() -> void:
-	var binds := {
-		"move_forward": KEY_W, "move_back": KEY_S,
-		"move_left": KEY_A, "move_right": KEY_D,
-		"sprint": KEY_SHIFT, "crouch": KEY_C,
-		"prone": KEY_Z, "jump": KEY_SPACE,
-	}
-	for action in binds:
-		if not InputMap.has_action(action):
-			InputMap.add_action(action)
-			var ev := InputEventKey.new()
-			ev.physical_keycode = binds[action]
-			InputMap.action_add_event(action, ev)
+func _play_step(extra_db: float) -> void:
+	var sound := "step_grass"
+	match surface:
+		"mud": sound = "step_mud"
+		"hard": sound = "step_hard"
+		"metal": sound = "step_metal"
+	var vol: float = {Stance.STAND: -8.0, Stance.CROUCH: -14.0, Stance.PRONE: -18.0}[stance]
+	if sprinting:
+		vol = -4.0
+	S.play3d(self, sound, global_position, vol + extra_db, 0.15)
+
+
+func add_recoil(pitch: float, yaw: float) -> void:
+	_recoil += Vector2(pitch, yaw)
+	head.rotation.x = clampf(head.rotation.x + deg_to_rad(pitch * 0.35), deg_to_rad(-86), deg_to_rad(86))
+	rotate_y(deg_to_rad(yaw * 0.3))
+
+
+func add_shake(amount: float) -> void:
+	_shake = clampf(_shake + amount, 0.0, 2.0)
+
+
+func take_damage(amount: float, from_pos: Vector3) -> void:
+	if is_dead or (game and game.god_mode):
+		return
+	health -= amount
+	_since_damage = 0.0
+	add_shake(0.5)
+	S.play2d(self, "hurt", -4.0)
+	if game:
+		game.hud.damage(from_pos, amount)
+	if health <= 0.0:
+		health = 0.0
+		is_dead = true
+		controls_enabled = false
+		died.emit()
+
+
+func respawn(pos: Vector3, yaw: float) -> void:
+	global_position = pos
+	rotation.y = yaw
+	head.rotation.x = 0.0
+	velocity = Vector3.ZERO
+	health = MAX_HEALTH
+	stamina = MAX_STAMINA
+	is_dead = false
+	controls_enabled = true
+	move_enabled = true
+	stance = Stance.CROUCH
+	_apply_stance(true)
+	weapon.refill()
+
+
+func eye_position() -> Vector3:
+	return camera.global_position
+
+
+func aim_ray() -> Array:
+	return [camera.global_position, -camera.global_transform.basis.z]
