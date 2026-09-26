@@ -8,6 +8,7 @@ const PlayerScript := preload("res://scripts/player.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const MissionScript := preload("res://scripts/mission.gd")
+const PauseScript := preload("res://scripts/pause_menu.gd")
 const TerrainScript := preload("res://scripts/world/terrain.gd")
 const Seg1Script := preload("res://scripts/world/seg1_timberline.gd")
 const Seg2Script := preload("res://scripts/world/seg2_kranor.gd")
@@ -36,6 +37,7 @@ var checkpoint_pos := START_POS
 var checkpoint_yaw := PI
 var god_mode := false
 var difficulty_mult := 1.0
+var mouse_sens_mult := 1.0
 var extra_surfaces: Array = []   # Callables returning "" or a surface name
 var _amb_rain: AudioStreamPlayer
 var _amb_wind: AudioStreamPlayer
@@ -76,6 +78,10 @@ func _ready() -> void:
 	seg5.game = self
 	add_child(seg5)
 	extra_surfaces.append(seg5.surface_at)
+	seg4.visible = false
+	seg5.visible = false
+	for seg in [seg1, seg2, seg4, seg5]:
+		_optimize(seg)
 
 	hud = CanvasLayer.new()
 	hud.set_script(HudScript)
@@ -102,6 +108,11 @@ func _ready() -> void:
 	mission.game = self
 	add_child(mission)
 
+	var pause := CanvasLayer.new()
+	pause.set_script(PauseScript)
+	pause.game = self
+	add_child(pause)
+
 	hud.fade_to(0.0, 3.0)
 
 
@@ -113,6 +124,26 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_F8:
 				god_mode = not god_mode
 				hud.hint("God mode " + ("ON" if god_mode else "OFF"))
+
+
+## Distance culling: fog hides far objects anyway, so don't draw them.
+## Small props get a shorter draw distance and no shadows.
+func _optimize(root_node: Node) -> void:
+	for n in root_node.find_children("*", "GeometryInstance3D", true, false):
+		var g := n as GeometryInstance3D
+		if g is MultiMeshInstance3D:
+			continue
+		var size := 0.0
+		if g is MeshInstance3D and (g as MeshInstance3D).mesh:
+			size = (g as MeshInstance3D).mesh.get_aabb().size.length() * g.global_transform.basis.get_scale().length() / 1.7
+		if size < 1.2:
+			g.visibility_range_end = 40.0
+			g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		elif size < 5.0:
+			g.visibility_range_end = 85.0
+		else:
+			g.visibility_range_end = 150.0
+		g.visibility_range_end_margin = 8.0
 
 
 # ------------------------------------------------------------------ queries
@@ -188,6 +219,8 @@ func on_enemy_killed(enemy, headshot: bool) -> void:
 # ------------------------------------------------------------------ segments
 
 func start_segment4() -> void:
+	seg4.visible = true
+	seg5.visible = true
 	seg4.start(player.global_position)
 
 
@@ -289,7 +322,8 @@ func _build_environment() -> void:
 	sun.shadow_opacity = 0.55
 	sun.shadow_blur = 2.5
 	sun.light_angular_distance = 4.0
-	sun.directional_shadow_max_distance = 90.0
+	sun.directional_shadow_max_distance = 70.0
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
 	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	add_child(sun)
 

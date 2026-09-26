@@ -189,6 +189,7 @@ func _build_pass() -> void:
 		var mp := Vector3(side * rng.randf_range(140, 320), -40, rng.randf_range(220, 800))
 		var hgt := rng.randf_range(60, 140)
 		B.cyl(self, 0.5, hgt * 0.8, hgt, mp + Vector3(0, hgt / 2.0, 0), M.tinted("concrete", Color(0.38, 0.4, 0.4)), false, Vector3.ZERO, 7)
+	_flush_foliage()
 	_build_bridge()
 	_build_river()
 	_build_tunnel()
@@ -203,16 +204,51 @@ func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, col:
 		st.add_vertex(v)
 
 
+var _trunk_x: Array = []
+var _cone_x: Array = []
+var _bush_x: Array = []
+
+
 func _tree(p: Vector3, h: float) -> void:
-	B.cyl(self, 0.1, 0.3, h, p + Vector3(0, h / 2.0, 0), M.get_mat("bark"), false, Vector3.ZERO, 6)
+	_trunk_x.append(Transform3D(Basis().scaled(Vector3(0.3, h, 0.3)), p + Vector3(0, h / 2.0, 0)))
 	for i in 5:
 		var t := i / 5.0
-		B.cyl(self, 0.02, lerpf(2.4, 0.6, t), h * 0.35, p + Vector3(0, h * (0.35 + t * 0.55), 0), M.get_mat("needles"), false, Vector3.ZERO, 7)
+		var r := lerpf(2.4, 0.6, t)
+		_cone_x.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(r, h * 0.35, r)), p + Vector3(0, h * (0.35 + t * 0.55), 0)))
 
 
 func _bush(p: Vector3) -> void:
-	var b := B.mesh(self, SphereMesh.new(), p + Vector3(0, 0.6, 0), M.tinted("needles", Color(0.8, 1.0, 0.8)))
-	b.scale = Vector3(rng.randf_range(1.2, 2.2), rng.randf_range(0.8, 1.5), rng.randf_range(1.2, 2.2))
+	_bush_x.append(Transform3D(Basis().scaled(Vector3(rng.randf_range(1.2, 2.2), rng.randf_range(0.8, 1.5), rng.randf_range(1.2, 2.2))), p + Vector3(0, 0.6, 0)))
+
+
+func _flush_foliage() -> void:
+	var trunk := CylinderMesh.new()
+	trunk.top_radius = 0.33
+	trunk.bottom_radius = 1.0
+	trunk.height = 1.0
+	trunk.radial_segments = 6
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.01
+	cone.bottom_radius = 1.0
+	cone.height = 1.0
+	cone.radial_segments = 7
+	var bush := SphereMesh.new()
+	bush.radial_segments = 8
+	bush.rings = 5
+	bush.radius = 0.5
+	bush.height = 1.0
+	for spec in [[trunk, _trunk_x, M.get_mat("bark")], [cone, _cone_x, M.get_mat("needles")], [bush, _bush_x, M.tinted("needles", Color(0.8, 1.0, 0.8))]]:
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = spec[0]
+		var xs: Array = spec[1]
+		mm.instance_count = xs.size()
+		for i in xs.size():
+			mm.set_instance_transform(i, xs[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = spec[2]
+		add_child(mmi)
 
 
 func _build_bridge() -> void:

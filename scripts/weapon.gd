@@ -11,7 +11,7 @@ const RELOAD_TIME := 2.1
 const DAMAGE := 34.0
 const RANGE := 250.0
 const HIP_POS := Vector3(0.2, -0.205, -0.38)
-const ADS_POS := Vector3(0.0, -0.0586, -0.22)
+const ADS_POS := Vector3(0.0, -0.0664, -0.27)
 const SPRINT_POS := Vector3(0.12, -0.24, -0.3)
 
 var player
@@ -52,10 +52,11 @@ func _ready() -> void:
 		B.box(model, Vector3(0.034, 0.1, 0.042), Vector3(0, -0.085, 0.1), poly, false, Vector3(-18, 0, 0)),
 		B.box(model, Vector3(0.048, 0.07, 0.2), Vector3(0, -0.012, 0.27), poly, false),
 		B.box(model, Vector3(0.022, 0.012, 0.3), Vector3(0, 0.046, -0.1), metal, false),   # top rail
-		B.box(model, Vector3(0.036, 0.024, 0.06), Vector3(0, 0.062, -0.03), metal, false),  # sight base
-		B.box(model, Vector3(0.036, 0.004, 0.012), Vector3(0, 0.094, -0.045), metal, false),  # sight hood top
-		B.box(model, Vector3(0.004, 0.034, 0.012), Vector3(-0.017, 0.078, -0.045), metal, false),
-		B.box(model, Vector3(0.004, 0.034, 0.012), Vector3(0.017, 0.078, -0.045), metal, false),
+		B.box(model, Vector3(0.03, 0.012, 0.07), Vector3(0, 0.058, -0.03), metal, false),   # optic base
+		B.box(model, Vector3(0.04, 0.004, 0.03), Vector3(0, 0.099, -0.05), metal, false),   # optic hood top
+		B.box(model, Vector3(0.004, 0.04, 0.03), Vector3(-0.02, 0.08, -0.05), metal, false),
+		B.box(model, Vector3(0.004, 0.04, 0.03), Vector3(0.02, 0.08, -0.05), metal, false),
+		B.box(model, Vector3(0.04, 0.004, 0.03), Vector3(0, 0.063, -0.05), metal, false),   # optic bottom
 		B.box(model, Vector3(0.075, 0.055, 0.11), Vector3(-0.005, -0.045, -0.3), glove, false),  # left hand
 		B.box(model, Vector3(0.06, 0.06, 0.08), Vector3(0.012, -0.075, 0.09), glove, false),     # right hand
 	]
@@ -68,7 +69,7 @@ func _ready() -> void:
 	sm.height = 0.0032
 	dot.mesh = sm
 	dot.material_override = M.emissive(Color(1, 0.1, 0.05), 6.0)
-	dot.position = Vector3(0, 0.0715, -0.045)
+	dot.position = Vector3(0, 0.081, -0.05)
 	model.add_child(dot)
 
 	muzzle = Node3D.new()

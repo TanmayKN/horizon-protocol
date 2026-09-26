@@ -137,14 +137,26 @@ func _build_trees() -> void:
 		var x3 := rng.randf_range(-120, 120)
 		var z3 := rng.randf_range(185, 205)
 		_add_tree(Vector3(x3, h(x3, z3) - 0.3, z3), rng.randf_range(12, 20), bark, needles_dark)
+	_flush_trees()
 
 
-func _add_tree(pos: Vector3, height: float, bark: Material, needles: Material) -> void:
+var _trunks: Array = []
+var _cones: Array = []        # [Transform3D, dark?]
+
+
+func _add_tree(pos: Vector3, height: float, _bark: Material, needles: Material) -> void:
+	# Collision only; the visuals are batched into MultiMeshes (see _flush_trees)
 	var body := StaticBody3D.new()
 	body.position = pos
-	body.rotation.y = rng.randf() * TAU
 	add_child(body)
-	B.cyl(body, 0.14, 0.38, height, Vector3(0, height / 2.0, 0), bark, false, Vector3.ZERO, 10)
+	var shape := CylinderShape3D.new()
+	shape.radius = 0.38
+	shape.height = height
+	B.add_shape(body, shape, Vector3(0, height / 2.0, 0))
+	var yaw := rng.randf() * TAU
+	var base := Basis(Vector3.UP, yaw)
+	_trunks.append(Transform3D(base.scaled(Vector3(0.38, height, 0.38)), pos + Vector3(0, height / 2.0, 0)))
+	var dark := needles != M.get_mat("needles")
 	var layers := rng.randi_range(9, 12)
 	var start := height * rng.randf_range(0.18, 0.28)
 	var spacing := (height * 0.98 - start) / layers
@@ -154,17 +166,45 @@ func _add_tree(pos: Vector3, height: float, bark: Material, needles: Material) -
 		var y := start + i * spacing
 		var cone_h := spacing * rng.randf_range(2.2, 2.8)
 		var off := Vector3(rng.randf_range(-0.25, 0.25), 0, rng.randf_range(-0.25, 0.25))
-		var cm := CylinderMesh.new()
-		cm.top_radius = 0.02
-		cm.bottom_radius = r
-		cm.height = cone_h
-		cm.radial_segments = 8
-		cm.rings = 2
-		B.mesh(body, cm, Vector3(0, y + cone_h * 0.3, 0) + off, needles, Vector3(rng.randf_range(-8, 8), rng.randf() * 360, rng.randf_range(-8, 8)))
-	var shape := CylinderShape3D.new()
-	shape.radius = 0.38
-	shape.height = height
-	B.add_shape(body, shape, Vector3(0, height / 2.0, 0))
+		var b := Basis.from_euler(Vector3(deg_to_rad(rng.randf_range(-8, 8)), rng.randf() * TAU, deg_to_rad(rng.randf_range(-8, 8))))
+		_cones.append([Transform3D(b.scaled(Vector3(r, cone_h, r)), pos + Vector3(0, y + cone_h * 0.3, 0) + off), dark])
+
+
+func _flush_trees() -> void:
+	var trunk_mesh := CylinderMesh.new()
+	trunk_mesh.top_radius = 0.37
+	trunk_mesh.bottom_radius = 1.0
+	trunk_mesh.height = 1.0
+	trunk_mesh.radial_segments = 8
+	trunk_mesh.rings = 1
+	_multimesh(trunk_mesh, _trunks, M.get_mat("bark"))
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.01
+	cone.bottom_radius = 1.0
+	cone.height = 1.0
+	cone.radial_segments = 8
+	cone.rings = 2
+	var light: Array = []
+	var dark: Array = []
+	for c in _cones:
+		(dark if c[1] else light).append(c[0])
+	_multimesh(cone, light, M.get_mat("needles"))
+	_multimesh(cone, dark, M.tinted("needles", Color(0.75, 0.8, 0.75)))
+	_trunks.clear()
+	_cones.clear()
+
+
+func _multimesh(m: Mesh, xforms: Array, mat: Material) -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = m
+	mm.instance_count = xforms.size()
+	for i in xforms.size():
+		mm.set_instance_transform(i, xforms[i])
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	mmi.material_override = mat
+	add_child(mmi)
 
 
 func _build_grass() -> void:

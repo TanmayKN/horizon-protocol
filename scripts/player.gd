@@ -102,7 +102,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if is_dead:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		var sens := MOUSE_SENS * (0.55 if aiming else 1.0)
+		var sens: float = MOUSE_SENS * (0.55 if aiming else 1.0) * (game.mouse_sens_mult if game else 1.0)
 		rotate_y(-event.relative.x * sens)
 		head.rotate_x(-event.relative.y * sens)
 		head.rotation.x = clampf(head.rotation.x, deg_to_rad(-86), deg_to_rad(86))
@@ -111,8 +111,6 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif not controls_enabled:
 		return
 	elif event.is_action_pressed("crouch"):
@@ -355,7 +353,7 @@ func add_shake(amount: float) -> void:
 func take_damage(amount: float, from_pos: Vector3) -> void:
 	if is_dead or (game and game.god_mode):
 		return
-	health -= amount
+	health -= amount * (game.difficulty_mult if game else 1.0)
 	_since_damage = 0.0
 	add_shake(0.5)
 	S.play2d(self, "hurt", -4.0)

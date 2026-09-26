@@ -173,6 +173,7 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Movement on the warehouse catwalk! They're coming through the south door!", 0.3, true)
 			hud.set_objective("Hold off the Vanguard squad at the catwalk door", game.seg2.CATWALK_DOOR + Vector3(0, 1.5, 0))
 		"s3_window":
+			game.seg4.visible = true
 			game.seg2.stop_alarm()
 			say(OVERWATCH, "Vance! I've got a supply truck. I'm bringing it under the west window. When I say jump, you JUMP!", 0.2, true)
 			hud.set_objective("Escape through the blown-out window", game.seg2.WINDOW_POS + Vector3(0, 1.2, 0))
@@ -186,6 +187,8 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Got you! Hold on to something!", 0.2, true)
 			say(VANCE, "Just drive, Reyes!")
 		"s5_enter":
+			game.seg1.visible = false
+			game.seg2.visible = false
 			var out: Vector3 = game.seg4.dismount()
 			game.player.global_position = out
 			game.player.stance = 1

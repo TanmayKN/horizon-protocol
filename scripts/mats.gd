@@ -210,11 +210,11 @@ static func _make(name: String) -> StandardMaterial3D:
 			return m
 		"concrete":
 			var m := _base(Color(0.62, 0.62, 0.6), 0.85)
-			m.albedo_texture = noise_tex(61, 0.08, 256, 256, [Color(0.7, 0.7, 0.68), Color(1, 1, 1), Color(0.82, 0.82, 0.8)])
+			m.albedo_texture = noise_tex(61, 0.05, 256, 256, [Color(0.84, 0.84, 0.82), Color(1, 1, 1), Color(0.9, 0.9, 0.88)])
 			m.normal_enabled = true
-			m.normal_texture = noise_tex(62, 0.2, 256, 256, [], true, 2.0)
+			m.normal_texture = noise_tex(62, 0.2, 256, 256, [], true, 1.2)
 			m.uv1_triplanar = true
-			m.uv1_scale = Vector3(0.25, 0.25, 0.25)
+			m.uv1_scale = Vector3(0.18, 0.18, 0.18)
 			return m
 		"asphalt":
 			var m := _base(Color(0.2, 0.2, 0.21), 0.45)
@@ -239,6 +239,9 @@ static func _make(name: String) -> StandardMaterial3D:
 			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 			m.alpha_scissor_threshold = 0.35
 			m.alpha_antialiasing_mode = BaseMaterial3D.ALPHA_ANTIALIASING_ALPHA_TO_COVERAGE
+			m.emission_enabled = true
+			m.emission_texture = m.albedo_texture
+			m.emission = Color(0.12, 0.13, 0.1)
 			m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 			m.cull_mode = BaseMaterial3D.CULL_DISABLED
 			return m
