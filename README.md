@@ -53,8 +53,8 @@ You can change any key in **Esc → Controls**: click a key and press the new on
 
 ## Download and play (no Godot needed)
 
-- **Mac:** TheHorizonProtocol.dmg from the [Releases page](https://github.com/TanmayKN/horizon-protocol/releases). Open it, drag the game into Applications, then right-click the game and choose **Open** the first time.
-- **Windows:** TheHorizonProtocol-Windows.zip from the [Releases page](https://github.com/TanmayKN/horizon-protocol/releases). Unzip it and run `TheHorizonProtocol.exe`. If SmartScreen warns you, click **More info** then **Run anyway**.
+- **Mac:** [TheHorizonProtocol.dmg](https://github.com/TanmayKN/horizon-protocol/raw/main/downloads/TheHorizonProtocol.dmg). Open it, drag the game into Applications, then right-click the game and choose **Open** the first time.
+- **Windows:** [TheHorizonProtocol-Windows.zip](https://github.com/TanmayKN/horizon-protocol/raw/main/downloads/TheHorizonProtocol-Windows.zip). Unzip it and run `TheHorizonProtocol.exe`. If SmartScreen warns you, click **More info** then **Run anyway**.
 
 ## How to play it
 
