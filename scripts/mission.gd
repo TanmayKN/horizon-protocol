@@ -89,6 +89,8 @@ func _process(delta: float) -> void:
 	_process_radio(delta)
 	_check_overheard()
 	var p = game.player
+	if step == "s4_ride":
+		_do_wheel(delta)
 	match step:
 		"s1_intro":
 			if _near(game.seg1.WIRE_POS, 3.2):
@@ -165,22 +167,22 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Fence is torn right in front of you. One strand still holds. Cut it and you're in.")
 			say(OVERWATCH, "Mind the searchlight on the central tower. If it lights you up, the sniper up there won't miss.")
 			say(OVERWATCH, "Controls check: C to crouch, Z to go prone, Q and E to lean. Stay in the dark.", 1.0)
-			hud.set_objective("Reach the torn section of the perimeter fence", _marker(seg1.WIRE_POS, 1.0))
+			_goal("Crawl to the broken fence  (follow the yellow marker)", "Stay low so the searchlight misses you:  Z = lie down,  C = crouch", _marker(seg1.WIRE_POS, 1.0))
 		"s1_cut":
-			hud.set_objective("Cut the perimeter wire", _marker(seg1.WIRE_POS, 1.0))
+			_goal("Cut the fence wire", "Stand at the gap and HOLD  F", _marker(seg1.WIRE_POS, 1.0))
 		"s1_sniper":
 			hud.prompt("")
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
 			say(OVERWATCH, "You're through. Tower sniper is your priority. Once he's down, the yard is blind.", 0.5)
 			say(OVERWATCH, "Right-click to aim. That light is a target too if you want to keep it simple.")
-			hud.set_objective("Neutralize the guard tower sniper", seg1.sniper)
+			_goal("Kill the sniper in the guard tower", "Hold RIGHT-CLICK (or X) to aim, then shoot.  His scoped rifle drops in the tower - climb the ladder to grab it", seg1.sniper)
 		"s1_downhill":
 			seg1.stop_searchlight()
 			say(OVERWATCH, "Sniper down. Tower's dark. Nice work, Major.", 0.8)
 			say(OVERWATCH, "Kranor Logistics is at the bottom of the slope. Follow the access road to the gate.")
 			say(VANCE, "Moving down.")
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
-			hud.set_objective("Move down the slope into Kranor Logistics Yard", Vector3(20, 2, game.terrain.YARD_Z))
+			_goal("Go down the hill to the Kranor yard", "Follow the road and the power lines down the slope", Vector3(20, 2, game.terrain.YARD_Z))
 		"s2_enter":
 			game.set_atmosphere("yard")
 			hud.title("SEGMENT 2", "The Logistics Hub Infiltration     |     Kranor Logistics Yard")
@@ -189,14 +191,14 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Container stacks will box you in. Watch every corner.")
 			say(OVERWATCH, "Admin block is the three-storey building east of the road, next to warehouse W1. Terminal's on the top floor.")
 			_spawn_segment2()
-			hud.set_objective("Infiltrate the admin block", Vector3(36.5, 1.5, 105))
+			_goal("Get inside the grey 3-storey admin building", "Sneak through the containers.  The door is on the loading-bay side (marker)", Vector3(36.5, 1.5, 105))
 		"s2_admin":
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
 			say(OVERWATCH, "You're inside. Stairs are in the north-east corner. Top floor, secure node.", 0.3)
-			hud.set_objective("Reach the terminal on the top floor", game.seg2.TERMINAL_POS + Vector3(0, 1.2, -0.9))
+			_goal("Go UP the stairs to the TOP floor - the computer is there", "The stairs are in the back corner.  Look for the glowing green screen", game.seg2.TERMINAL_POS + Vector3(0, 1.2, -0.9))
 		"s2_download":
 			say(VANCE, "At the terminal. Starting the download.", 0.0)
-			hud.set_objective("Download the encrypted logs", game.seg2.TERMINAL_POS + Vector3(0, 1.2, -0.9))
+			_goal("Take the data from the computer", "Stand at the green screen and HOLD  F  until the bar is full", game.seg2.TERMINAL_POS + Vector3(0, 1.2, -0.9))
 		"s3_blackout":
 			hud.prompt("")
 			game.seg2.start_blackout()
@@ -208,7 +210,7 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Vance, the grid just went- that wasn't us. Vanguard QRF is on the stairs!", 0.3, false, true)
 			hud.hint("COMMS JAMMED", 4.0)
 			say(RASKOV_PA, "Major Vance. Did you really think I would leave my logs unguarded?", 3.0)
-			hud.set_objective("Survive the counter-attack")
+			_goal("AMBUSH!  Kill the soldiers coming up the stairs", "Take cover behind the desks.  R = reload,  1 / 2 / 3 = switch weapon")
 			_wave = []
 			var top: Vector3 = game.seg2.RAMP_B_TOP
 			for off in [Vector3(-0.8, 0.3, 0.5), Vector3(0.8, 0.3, 1.5), Vector3(0.0, 0.3, 2.5)]:
@@ -225,26 +227,26 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Get down to the second storey. The transformer blast took out the west windows. That's your exit.")
 			say(OVERWATCH, "Vance... they were waiting for you. Somebody tipped them off.", 1.5)
 			say(VANCE, "Then we find out who. After we get out of here.")
-			hud.set_objective("Fight your way down to the second storey", Vector3(47.2, game.seg2.FLOOR_H * 1.5 + 1.2, 107.5))
+			_goal("Go DOWN the stairs one floor", "The stairs below that are blocked by rubble - get off on the middle floor", Vector3(47.2, game.seg2.FLOOR_H * 1.5 + 1.2, 107.5))
 		"s3_catwalk":
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
 			_wave = []
 			_wave_spawned = 0
 			say(OVERWATCH, "Movement on the warehouse catwalk! They're coming through the south door!", 0.3, true)
 			say(RASKOV_PA, "Take her alive if you can. If you can't... I'll settle for the drive.", 2.0)
-			hud.set_objective("Hold off the Vanguard squad at the catwalk door", game.seg2.CATWALK_DOOR + Vector3(0, 1.5, 0))
+			_goal("Kill the soldiers coming through the catwalk door", "Aim at the door (marker).  Grab the guns and ammo they drop", game.seg2.CATWALK_DOOR + Vector3(0, 1.5, 0))
 		"s3_window":
 			game.seg4.visible = true
 			game.seg2.stop_alarm()
 			say(OVERWATCH, "Vance! I've got a supply truck. I'm bringing it under the west window. When I say jump, you JUMP!", 0.2, true)
-			hud.set_objective("Escape through the blown-out window", game.seg2.WINDOW_POS + Vector3(0, 1.2, 0))
+			_goal("Run to the smashed window and jump", "Reyes is bringing a truck under the window - just walk into the window", game.seg2.WINDOW_POS + Vector3(0, 1.2, 0))
 		"s4_escape":
 			hud.prompt("")
 			hud.set_objective("")
 			say(OVERWATCH, "NOW, VANCE!", 0.0, true)
 			game.start_segment4()
 		"s4_ride":
-			hud.set_objective("Survive the escape  -  shoot the pursuing gun trucks")
+			_goal("Shoot the gun trucks chasing you", "Aim for the gunner behind the machine gun.  Crouch (C) when bullets fly")
 			say(OVERWATCH, "Got you! Hold on to something!", 0.2, true)
 			say(VANCE, "Just drive, Reyes!")
 		"s5_enter":
@@ -263,12 +265,12 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Argh... my leg's pinned under the dash. I'll hold the entrance.", 1.5, true)
 			say(OVERWATCH, "Go, Vance. Raskov is in there. Finish it.")
 			say(RASKOV_PA, "Welcome to Site 9, Major. You've come a long way to die underground.", 1.5)
-			hud.set_objective("Push into the bunker", Vector3(10, 20.5, 648))
+			_goal("Get into the bunker", "Head through the big doors ahead (marker)", Vector3(10, 20.5, 648))
 			_spawn_segment5()
 		"s5_server":
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
 			say(OVERWATCH, "Command center is up the stairs on the west side of the data core. Behind the glass.", 0.5)
-			hud.set_objective("Reach the command center door", game.seg5.BREACH_POS + Vector3(0, 1.6, -0.4))
+			_goal("Find the command center door", "Go up the stairs on the west side of the server room", game.seg5.BREACH_POS + Vector3(0, 1.6, -0.4))
 		"s5_breach":
 			game.seg5.set_ambience(false)
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
@@ -276,20 +278,20 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Plant the charge. On your go, Major.")
 			say(RASKOV_PA, "You can still walk away, Major. The Protocol ends wars. Whoever holds it, nobody dares fight them.", 1.5)
 			say(VANCE, "That's not peace, Raskov. That's a leash.")
-			hud.set_objective("Breach the command center", game.seg5.BREACH_POS + Vector3(0, 1.6, -0.4))
+			_goal("Blow the door open", "Stand at the door and HOLD  F  to plant the charge, then step back", game.seg5.BREACH_POS + Vector3(0, 1.6, -0.4))
 		"s5_raskov":
 			hud.prompt("")
-			hud.set_objective("Neutralize Raskov")
+			_goal("Kill Raskov - he has the key to the vault", "He is the officer in the red beret.  His guards will cover him")
 		"s5_vault":
 			game.seg5.set_ambience(true)
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
 			say(VANCE, "Raskov is down.", 1.0, true)
 			say(OVERWATCH, "...Good. The Protocol is in the vault behind the command center. Get it.", 0.3)
 			say(OVERWATCH, "And check his console on the way. I want to know who tipped him off.")
-			hud.set_objective("Open the vault", game.seg5.VAULT_POS + Vector3(0, 1.7, -0.5))
+			_goal("Use Raskov's key on the vault door", "Go to the vault (marker) and HOLD  F", game.seg5.VAULT_POS + Vector3(0, 1.7, -0.5))
 		"s5_drive":
 			hud.prompt("")
-			hud.set_objective("Secure the Horizon Protocol", game.seg5.DRIVE_POS + Vector3(0, 0.4, 0))
+			_goal("Grab the Horizon Protocol drive", "Walk up to the glowing drive and press  F", game.seg5.DRIVE_POS + Vector3(0, 0.4, 0))
 		"end":
 			hud.prompt("")
 			game.drive_secured()
@@ -297,7 +299,7 @@ func _go(new_step: String) -> void:
 			hud.hint("HORIZON PROTOCOL SECURED", 3.0)
 			say(VANCE, "Overwatch, I have the Horizon Protocol. Coming back to you.", 0.5, true)
 			say(OVERWATCH, "Copy. I've called in Nightingale. Get back to the entrance, Major.")
-			hud.set_objective("Get back to Reyes at the bunker entrance", game.seg4.truck.global_position + Vector3(0, 2.5, 0))
+			_goal("Go back to Reyes and the truck at the entrance", "Follow the marker out of the bunker", game.seg4.truck.global_position + Vector3(0, 2.5, 0))
 			_go_quiet("e_return")
 		"e_extract":
 			hud.set_objective("")
@@ -512,7 +514,7 @@ func on_seg4_event(name: String) -> void:
 		"techs2":
 			say(OVERWATCH, "Two more coming up fast behind us!", 0.0, true)
 			say(OVERWATCH, "Argh! I'm hit... I can't hold the wheel! Vance, get up here and DRIVE! I'll cover the back!", 2.5)
-			get_tree().create_timer(7.0).timeout.connect(_take_wheel)
+			get_tree().create_timer(6.0).timeout.connect(_offer_wheel)
 			say("Raskov (intercept)", "All units: stop that truck. I don't care what it costs.", 1.0)
 		"tunnel":
 			say(OVERWATCH, "Tunnel's collapsed! Taking the old service road around it!", 0.0, true)
@@ -532,12 +534,54 @@ func on_seg4_event(name: String) -> void:
 			_go("s5_enter")
 
 
+var _wheel_offered := false
+var _wheel_hold := 0.0
+var _wheel_t := 0.0
+
+
+## Reyes is hit: tell the player to climb into the cab
+func _offer_wheel() -> void:
+	if not step.begins_with("s4") or game.seg4.player_driving or not game.seg4.active:
+		return
+	_wheel_offered = true
+	_wheel_hold = 0.0
+	_wheel_t = 0.0
+	_goal("Reyes is hit!  Climb into the driver's seat", "HOLD  F  to climb over into the cab and take the wheel", game.seg4.driver_anchor)
+
+
+func _do_wheel(delta: float) -> void:
+	if not _wheel_offered or game.seg4.player_driving:
+		return
+	_wheel_t += delta
+	if Input.is_action_pressed("interact") and game.player.controls_enabled:
+		_wheel_hold += delta / 1.0
+		game.hud.prompt("Climbing into the cab...", _wheel_hold)
+	else:
+		_wheel_hold = maxf(0.0, _wheel_hold - delta)
+		game.hud.prompt("HOLD  F  to take the wheel", _wheel_hold if _wheel_hold > 0.0 else -1.0)
+	if _wheel_hold >= 1.0 or _wheel_t > 25.0:     # Reyes can't hold on forever
+		_wheel_offered = false
+		game.hud.prompt("")
+		game.hud.fade_to(1.0, 0.2)
+		S.play2d(game, "door", -4.0)
+		get_tree().create_timer(0.35).timeout.connect(func():
+			_take_wheel()
+			game.hud.fade_to(0.0, 0.4))
+
+
 func _take_wheel() -> void:
 	if not step.begins_with("s4") or game.seg4.player_driving or not game.seg4.active:
 		return
 	game.seg4.start_player_drive()
-	game.hud.set_objective("Drive the truck to Raskov's bunker  -  dodge the rockfall")
+	_goal("Drive to Raskov's bunker - dodge the falling rocks", "W = gas,  S = brake,  A / D = steer.  Stay on the road")
 	say(VANCE, "I've got the wheel! Hold on, Reyes!", 0.2, true)
+
+
+## Objective + a how-to hint so it's always obvious what to do next
+func _goal(text: String, how: String = "", marker = null) -> void:
+	game.hud.set_objective(text, marker)
+	if how != "":
+		game.hud.hint(how, 7.0)
 
 
 func _spawn_segment5() -> void:

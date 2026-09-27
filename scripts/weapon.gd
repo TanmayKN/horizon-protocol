@@ -344,8 +344,9 @@ func _process(delta: float) -> void:
 	model.rotation_degrees = model.rotation_degrees.lerp(rot, clampf((25.0 if _swing_t >= 0.0 else 12.0) * delta, 0.0, 1.0))
 
 	# Sniper scope: hide the rifle and show the scope overlay once fully aimed
-	scoped = d.get("scope", false) and player.aiming and _ads_blend > 0.85
-	_gun_root.visible = not scoped
+	scoped = d.get("scope", false) and player.aiming and _ads_blend > 0.6
+	# never let the camera end up inside the scope body: hide the rifle as soon as you start aiming it
+	_gun_root.visible = not (d.get("scope", false) and player.aiming and _ads_blend > 0.15)
 	if player.game:
 		player.game.hud.set_scope(scoped)
 

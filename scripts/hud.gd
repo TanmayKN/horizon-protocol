@@ -27,8 +27,7 @@ var _mud_layer: Control
 var _dmg_arrow: Label
 var _slot_labels: Array = []
 var _caliber: Label
-var _scope: ColorRect
-var _scope_mat: ShaderMaterial
+var _scope: Control
 
 var _radio_hide := 0.0
 var _hint_hide := 0.0
@@ -175,28 +174,27 @@ func _ready() -> void:
 		_place(sl, Control.PRESET_BOTTOM_RIGHT, -300, -150 + i * 24, -30, -128 + i * 24)
 		sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		_slot_labels.append(sl)
-	# Sniper scope overlay: black ring with thin crosshairs
-	_scope = ColorRect.new()
+	# Sniper scope overlay: a generated reticle image (clear circle, black ring, crosshairs)
+	# plus black bars on the sides. No shaders, so it looks the same on every GPU.
+	_scope = Control.new()
 	_scope.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var sh := Shader.new()
-	sh.code = """shader_type canvas_item;
-uniform float aspect = 1.777;
-void fragment() {
-	vec2 uv = UV - 0.5;
-	uv.x *= aspect;
-	float d = length(uv);
-	float ring = smoothstep(0.43, 0.445, d);
-	float cross_l = (abs(uv.x) < 0.0012 || abs(uv.y) < 0.0012) ? 1.0 : 0.0;
-	float thick = ((abs(uv.x) < 0.004 && abs(uv.y) > 0.12) || (abs(uv.y) < 0.004 && abs(uv.x) > 0.12)) ? 1.0 : 0.0;
-	float vign = smoothstep(0.25, 0.44, d) * 0.5;
-	COLOR = vec4(0.0, 0.0, 0.0, clamp(max(max(ring, max(cross_l, thick)), vign), 0.0, 1.0));
-}"""
-	_scope_mat = ShaderMaterial.new()
-	_scope_mat.shader = sh
-	_scope.material = _scope_mat
-	_scope.visible = false
 	add_child(_scope)
+	var tr := TextureRect.new()
+	tr.name = "reticle"
+	tr.texture = _scope_texture()
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tr.set_anchors_preset(Control.PRESET_FULL_RECT)
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_scope.add_child(tr)
+	for side in ["bar_l", "bar_r"]:
+		var bar := ColorRect.new()
+		bar.name = side
+		bar.color = Color.BLACK
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_scope.add_child(bar)
+	_scope.visible = false
 
 	_click = _label("CLICK TO PLAY", 40, Color.WHITE)
 	_place(_click, Control.PRESET_CENTER, -300, -30, 300, 30)
@@ -359,7 +357,36 @@ func set_scope(on: bool) -> void:
 		_cross.visible = not on
 	if on:
 		var vp := get_viewport().get_visible_rect().size
-		_scope_mat.set_shader_parameter("aspect", vp.x / maxf(vp.y, 1.0))
+		var side_w := maxf(0.0, (vp.x - vp.y) * 0.5) + 2.0
+		var bl: ColorRect = _scope.get_node("bar_l")
+		var br: ColorRect = _scope.get_node("bar_r")
+		bl.position = Vector2.ZERO
+		bl.size = Vector2(side_w, vp.y)
+		br.position = Vector2(vp.x - side_w, 0)
+		br.size = Vector2(side_w, vp.y)
+
+
+func _scope_texture() -> ImageTexture:
+	var n := 512
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	var c := n * 0.5
+	for y in n:
+		for x in n:
+			var dx := x - c + 0.5
+			var dy := y - c + 0.5
+			var d := sqrt(dx * dx + dy * dy) / c          # 0 centre .. 1 edge
+			var a := clampf((d - 0.94) / 0.03, 0.0, 1.0)  # black outside the lens
+			a = maxf(a, clampf((d - 0.7) / 0.24, 0.0, 1.0) * 0.35)   # darker towards the rim
+			var thin := absf(dx) < 1.0 or absf(dy) < 1.0
+			var thick := (absf(dx) < 3.0 and absf(dy) > c * 0.3) or (absf(dy) < 3.0 and absf(dx) > c * 0.3)
+			if (thin or thick) and d < 0.95:
+				a = 1.0
+			img.set_pixel(x, y, Color(0, 0, 0, a))
+	# red dot in the middle
+	for y in range(-2, 3):
+		for x in range(-2, 3):
+			img.set_pixel(int(c) + x, int(c) + y, Color(0.9, 0.1, 0.05, 1.0))
+	return ImageTexture.create_from_image(img)
 
 
 func hint(text: String, duration := 3.0) -> void:
