@@ -241,7 +241,7 @@ static func _make(name: String) -> StandardMaterial3D:
 			m.alpha_antialiasing_mode = BaseMaterial3D.ALPHA_ANTIALIASING_ALPHA_TO_COVERAGE
 			m.emission_enabled = true
 			m.emission_texture = m.albedo_texture
-			m.emission = Color(0.12, 0.13, 0.1)
+			m.emission = Color(0.05, 0.055, 0.04)
 			m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 			m.cull_mode = BaseMaterial3D.CULL_DISABLED
 			return m

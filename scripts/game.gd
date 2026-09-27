@@ -204,8 +204,27 @@ func on_enemy_alerted(enemy) -> void:
 	mission.on_alert(enemy)
 
 
+func spawn_ammo(pos: Vector3) -> void:
+	var a := Area3D.new()
+	a.position = pos + Vector3(0.4, 0.15, 0.3)
+	var shape := SphereShape3D.new()
+	shape.radius = 1.1
+	B.add_shape(a, shape, Vector3.ZERO)
+	var M := preload("res://scripts/mats.gd")
+	B.box(a, Vector3(0.35, 0.2, 0.22), Vector3.ZERO, M.tinted("uniform", Color(0.55, 0.6, 0.45)), false)
+	B.box(a, Vector3(0.36, 0.04, 0.23), Vector3(0, 0.05, 0), M.emissive(Color(1, 0.8, 0.3), 1.5), false)
+	add_child(a)
+	a.body_entered.connect(func(b):
+		if b == player and is_instance_valid(a):
+			player.weapon.reserve += 30
+			hud.hint("+30 AMMO", 1.2)
+			S.play2d(self, "reload", -12.0)
+			a.queue_free())
+
+
 func on_enemy_killed(enemy, headshot: bool) -> void:
 	kills += 1
+	spawn_ammo(enemy.global_position)
 	if headshot:
 		headshots += 1
 		hud.hint("HEADSHOT", 1.2)
@@ -224,8 +243,23 @@ func start_segment4() -> void:
 	seg4.start(player.global_position)
 
 
+var _indoor_t := 0.0
+var _rain_on := true
+
+
 func _process(delta: float) -> void:
 	play_time += delta
+	# No rain under roofs: check what is above Vance's head a few times a second
+	_indoor_t -= delta
+	if _indoor_t <= 0.0 and player and rain:
+		_indoor_t = 0.2
+		var from: Vector3 = player.global_position + Vector3(0, 2.0, 0)
+		var q := PhysicsRayQueryParameters3D.create(from, from + Vector3(0, 25, 0))
+		q.exclude = [player.get_rid()]
+		var covered := not get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+		rain.amount_ratio = 0.0 if (covered or not _rain_on) else 1.0
+		if _amb_rain:
+			_amb_rain.volume_db = -80.0 if not _rain_on else (-26.0 if covered else -14.0)
 
 
 func drive_secured() -> void:
@@ -378,10 +412,7 @@ func set_atmosphere(mode: String) -> void:
 			tw.tween_property(env, "fog_density", 0.004, 1.0)
 			tw.tween_property(env, "ambient_light_energy", 0.25, 1.0)
 			tw.tween_property(sun, "light_energy", 0.0, 1.0)
-	if rain:
-		rain.emitting = mode in ["forest", "yard", "blackout", "mountain"]
-	if _amb_rain:
-		_amb_rain.volume_db = -14.0 if rain.emitting else -80.0
+	_rain_on = mode in ["forest", "yard", "blackout", "mountain"]
 
 
 # ------------------------------------------------------------------ input map
