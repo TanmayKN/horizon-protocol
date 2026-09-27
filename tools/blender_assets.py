@@ -488,7 +488,7 @@ def supply_truck():
     box("dash_panel", (0.8, 0.02, 0.16), (-0.5, CY1 - 0.38, 2.05), "black")
     for i, gx in enumerate((-0.75, -0.6, -0.45, -0.3)):
         cyl("gauge", 0.045, 0.02, (gx, CY1 - 0.395, 2.06), "metal", rot=(90, 0, 0), verts=12)
-        cyl("gauge_face", 0.037, 0.01, (gx, CY1 - 0.41, 2.06), "nvg_glow" if i == 1 else "black", rot=(90, 0, 0), verts=12)
+        cyl("gauge_face", 0.037, 0.01, (gx, CY1 - 0.41, 2.06), "black", rot=(90, 0, 0), verts=12)
     _tube("steering_column", (-0.5, CY1 - 0.3, 1.9), (-0.5, CY1 - 0.62, 2.18), 0.035, "black", 8)
     torus("steering_wheel", 0.2, 0.022, (-0.5, CY1 - 0.64, 2.2), "black", rot=(-55, 0, 0), segs=24)
     for a in (0, 120, 240):
