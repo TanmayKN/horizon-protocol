@@ -25,6 +25,10 @@ var _cross: Control
 var _marker: Label
 var _mud_layer: Control
 var _dmg_arrow: Label
+var _slot_labels: Array = []
+var _caliber: Label
+var _scope: ColorRect
+var _scope_mat: ShaderMaterial
 
 var _radio_hide := 0.0
 var _hint_hide := 0.0
@@ -162,6 +166,37 @@ func _ready() -> void:
 	_ammo = _label("", 30, Color(0.95, 0.95, 0.9))
 	_place(_ammo, Control.PRESET_BOTTOM_RIGHT, -260, -70, -28, -30)
 	_ammo.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_caliber = _label("", 13, Color(0.8, 0.8, 0.72))
+	_place(_caliber, Control.PRESET_BOTTOM_RIGHT, -260, -30, -30, -12)
+	_caliber.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	# Weapon slots (1 primary, 2 sidearm, 3 knife)
+	for i in 3:
+		var sl := _label("", 14, Color.WHITE)
+		_place(sl, Control.PRESET_BOTTOM_RIGHT, -300, -150 + i * 24, -30, -128 + i * 24)
+		sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		_slot_labels.append(sl)
+	# Sniper scope overlay: black ring with thin crosshairs
+	_scope = ColorRect.new()
+	_scope.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var sh := Shader.new()
+	sh.code = """shader_type canvas_item;
+uniform float aspect = 1.777;
+void fragment() {
+	vec2 uv = UV - 0.5;
+	uv.x *= aspect;
+	float d = length(uv);
+	float ring = smoothstep(0.43, 0.445, d);
+	float cross_l = (abs(uv.x) < 0.0012 || abs(uv.y) < 0.0012) ? 1.0 : 0.0;
+	float thick = ((abs(uv.x) < 0.004 && abs(uv.y) > 0.12) || (abs(uv.y) < 0.004 && abs(uv.x) > 0.12)) ? 1.0 : 0.0;
+	float vign = smoothstep(0.25, 0.44, d) * 0.5;
+	COLOR = vec4(0.0, 0.0, 0.0, clamp(max(max(ring, max(cross_l, thick)), vign), 0.0, 1.0));
+}"""
+	_scope_mat = ShaderMaterial.new()
+	_scope_mat.shader = sh
+	_scope.material = _scope_mat
+	_scope.visible = false
+	add_child(_scope)
 
 	_click = _label("CLICK TO PLAY", 40, Color.WHITE)
 	_place(_click, Control.PRESET_CENTER, -300, -30, 300, 30)
@@ -217,7 +252,19 @@ func _process(delta: float) -> void:
 	var w = p.weapon
 	_ammo.text = ("RELOADING" if w.reloading else "%d / %d" % [w.ammo, w.reserve])
 	_ammo.modulate = Color(1, 0.4, 0.3) if w.ammo <= 5 and not w.reloading else Color.WHITE
-	_ammo.visible = not p.driving
+	_ammo.visible = not p.driving and not w.is_melee()
+	_caliber.visible = _ammo.visible
+	_caliber.text = w.ammo_type() + "   " + String(w.def()["name"])
+	for i in _slot_labels.size():
+		var sl: Label = _slot_labels[i]
+		var nm: String = w.weapon_name(i)
+		var extra := ""
+		if nm != "EMPTY" and i < 2:
+			var sd: Dictionary = w.slots[i]
+			extra = "  %d" % int(sd["mag"])
+		sl.text = "[%d]  %s%s" % [i + 1, nm, extra]
+		sl.visible = not p.driving
+		sl.modulate = Color(1, 0.85, 0.35, 1.0) if i == w.current else Color(1, 1, 1, 0.45)
 	_health_bar.value = p.health
 	_stamina_bar.value = p.stamina
 	_stamina_bar.modulate.a = 1.0 if p.stamina < 5.9 else 0.3
@@ -304,6 +351,15 @@ func title(line1: String, line2: String) -> void:
 	_title.text = line1
 	_subtitle.text = line2
 	_title_t = 0.0
+
+
+func set_scope(on: bool) -> void:
+	if _scope.visible != on:
+		_scope.visible = on
+		_cross.visible = not on
+	if on:
+		var vp := get_viewport().get_visible_rect().size
+		_scope_mat.set_shader_parameter("aspect", vp.x / maxf(vp.y, 1.0))
 
 
 func hint(text: String, duration := 3.0) -> void:

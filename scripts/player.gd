@@ -142,7 +142,7 @@ func _physics_process(delta: float) -> void:
 		_carrier_yaw = yaw
 		global_position = carrier.global_position
 		velocity = Vector3.ZERO
-		aiming = controls_enabled and Input.is_action_pressed("aim") and not weapon.reloading
+		aiming = controls_enabled and Input.is_action_pressed("aim") and weapon.can_aim()
 		sprinting = false
 		surface = "metal"
 		_update_camera(delta, Vector2.ZERO, 0.0)
@@ -199,7 +199,7 @@ func _physics_process(delta: float) -> void:
 				velocity.y = JUMP_VELOCITY
 	var dir := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
-	aiming = controls_enabled and Input.is_action_pressed("aim") and not weapon.reloading
+	aiming = controls_enabled and Input.is_action_pressed("aim") and weapon.can_aim()
 
 	# Surface + sprint + stamina
 	surface = surface_check.call(global_position) if surface_check.is_valid() else "grass"

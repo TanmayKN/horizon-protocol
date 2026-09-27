@@ -20,6 +20,7 @@ var state: State = State.PATROL
 var awareness := 0.0            # 0..1 (1 = fully alerted)
 var view_range := 42.0
 var callsign := "Tango"
+var gun_node: Node3D
 
 var body: Node3D
 var arm_r: Node3D
@@ -176,6 +177,7 @@ func _build_blender_model(model_name: String) -> void:
 	head_node = body.find_child("head", true, false)
 	arm_r = body.find_child("arm_r", true, false)
 	var gun: Node3D = body.find_child("gun", true, false)
+	gun_node = gun
 	gun_tip = body.find_child("gun_tip", true, false)
 	if gun_tip == null:
 		gun_tip = Node3D.new()
@@ -561,6 +563,11 @@ func take_hit(damage: float, hit_pos: Vector3, _dir: Vector3) -> void:
 	var tw := create_tween()
 	tw.tween_property(body, "rotation_degrees:x", 8.0, 0.06)
 	tw.tween_property(body, "rotation_degrees:x", 0.0, 0.15)
+
+
+## The gun this soldier carries (dropped when he dies)
+func weapon_id() -> String:
+	return "dmr" if is_sniper else "ak"
 
 
 func _die(headshot: bool) -> void:

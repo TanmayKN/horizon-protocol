@@ -67,7 +67,7 @@ func _ready() -> void:
 	vb.add_child(diff_option)
 	_button(vb, "Quit game", func(): get_tree().quit())
 	var help := Label.new()
-	help.text = "WASD move  |  Shift sprint  |  C crouch / slide  |  Z prone\nQ / E lean  |  LMB fire  |  RMB aim  |  R reload  |  F interact"
+	help.text = "WASD move  |  Shift sprint  |  C crouch / slide  |  Z prone\nQ / E lean  |  LMB fire / slash  |  RMB aim  |  R reload\n1 / 2 / 3 or mouse wheel: rifle, pistol, knife  |  F interact / pick up guns"
 	help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	help.add_theme_font_size_override("font_size", 12)
 	help.add_theme_color_override("font_color", Color(0.6, 0.62, 0.65))

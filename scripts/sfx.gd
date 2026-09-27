@@ -129,6 +129,23 @@ static func _make(name: String) -> AudioStreamWAV:
 			_burst(b, 0.0, 0.08, 60.0, 1.0, 1.0)
 			_burst(b, 0.0, 1.4, 3.5, 0.18, 0.7)
 			_tone(b, 0.0, 0.3, 90, 35, 10.0, 0.8)
+		"pistol":
+			b = _buf(0.45)
+			_burst(b, 0.0, 0.45, 12.0, 0.8, 1.0)
+			_tone(b, 0.0, 0.12, 180, 70, 25.0, 0.7)
+		"swish":        # knife slash
+			b = _buf(0.25)
+			_burst(b, 0.0, 0.25, 14.0, 0.15, 0.6)
+			_tone(b, 0.02, 0.18, 900, 400, 16.0, 0.12)
+		"stab":
+			b = _buf(0.2)
+			_burst(b, 0.0, 0.2, 35.0, 0.2, 1.0)
+			_tone(b, 0.0, 0.12, 120, 60, 30.0, 0.8)
+		"swap":         # weapon draw / pick up: two metal clacks
+			b = _buf(0.3)
+			_burst(b, 0.0, 0.04, 110.0, 0.95, 0.8)
+			_burst(b, 0.14, 0.05, 90.0, 0.9, 1.0)
+			_tone(b, 0.14, 0.08, 1400, 1200, 50.0, 0.25)
 		"step_grass":
 			b = _buf(0.12)
 			_burst(b, 0.0, 0.12, 40.0, 0.35, 1.0)

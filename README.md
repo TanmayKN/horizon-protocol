@@ -14,6 +14,20 @@ You are **Vance**, a Vanguard operative sent alone into the Kranor mountains to 
 | 4 | **The Escape Vector** (Mountain Access Pass) | Ride in the back of the truck shooting the technicals chasing you. When Sgt. Reyes gets hit, **you drive**. Dodge the rockfall |
 | 5 | **Vanguard Command Bunker** | Breach the bunker, reach the server room, face Raskov and get to the helicopter |
 
+## Weapons and ammo
+
+You carry three slots:
+
+| Slot | Weapon |
+|---|---|
+| 1 | Primary gun. You start with a suppressed **M4 carbine** (5.56) |
+| 2 | **P226 pistol** (9mm) |
+| 3 | **Combat knife**: silent, kills in one hit up close |
+
+- Every enemy you take down **drops his gun**. Walk up to it and press **F** to take it (your old gun is dropped in its place). Kranor soldiers carry the **AK-74** (7.62), and their snipers carry a scoped **SVD marksman rifle** (.308) that zooms in when you aim.
+- Ammo is separate for each calibre and **you have to pick it up**: soldiers drop ammo pouches, and each checkpoint has a supply cache with 5.56 and 9mm. Press F on a gun you already have to take its ammo.
+- Your M4 is suppressed, so only nearby enemies hear it. The captured guns are **loud** and alert everyone around.
+
 Find the **6 hidden intel documents** and listen in on the guards' conversations to learn the full story.
 
 ## Controls
@@ -25,12 +39,13 @@ Find the **6 hidden intel documents** and listen in on the guards' conversations
 | Left click | Shoot |
 | Right click | Aim down sights |
 | R | Reload |
+| 1 / 2 / 3 or mouse wheel | Switch weapon: primary gun / pistol / knife |
 | Shift | Sprint (uses stamina). Sprint + C to slide |
 | C / Ctrl | Crouch |
 | Z | Prone |
 | Space | Jump (and jump off a ladder) |
 | Q / E | Lean left / right |
-| F | Interact (cut fences, download intel, pick up items) |
+| F | Interact (cut fences, download intel, pick up guns) |
 | W / S on a ladder | Climb up / down |
 | W / S / A / D in the truck | Accelerate / brake / steer |
 | Esc | Pause menu (difficulty, mouse sensitivity, restart) |

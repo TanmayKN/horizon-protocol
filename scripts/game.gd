@@ -5,6 +5,7 @@ extends Node3D
 const B := preload("res://scripts/build.gd")
 const S := preload("res://scripts/sfx.gd")
 const PlayerScript := preload("res://scripts/player.gd")
+const WeaponScript := preload("res://scripts/weapon.gd")
 const EnemyScript := preload("res://scripts/enemy.gd")
 const HudScript := preload("res://scripts/hud.gd")
 const MissionScript := preload("res://scripts/mission.gd")
@@ -32,6 +33,8 @@ var play_time := 0.0
 var intel_found := 0
 var intel_total := 0
 var _intel_near = null
+var weapon_drops: Array = []     # guns lying on the ground (Node3D with meta gun_id / mag)
+var _caches_at: Array = []
 var enemies: Array = []
 var env: Environment
 var sun: DirectionalLight3D
@@ -217,11 +220,11 @@ func spawn_enemy(pos: Vector3, patrol: Array = [], sniper := false, stationary :
 	return e
 
 
-func on_player_shot(pos: Vector3) -> void:
+func on_player_shot(pos: Vector3, loud := false) -> void:
 	shots_fired += 1
-	# Suppressed carbine: only nearby enemies hear it
+	# Suppressed carbine: only nearby enemies hear it. Captured guns are loud.
 	for e in alive_enemies():
-		e.hear(pos, 16.0)
+		e.hear(pos, 45.0 if loud else 16.0)
 
 
 func on_enemy_alerted(enemy) -> void:
@@ -274,27 +277,76 @@ func _check_intel() -> void:
 		_intel_near = null
 
 
-func spawn_ammo(pos: Vector3) -> void:
+const AMMO_COLORS := {"5.56": Color(0.45, 0.55, 0.3), "7.62": Color(0.55, 0.42, 0.25), ".308": Color(0.5, 0.2, 0.15), "9mm": Color(0.35, 0.4, 0.5)}
+
+
+## An ammo pouch. kind "" = ammo for whatever gun the player is holding (supply boxes).
+func spawn_ammo(pos: Vector3, kind := "", amount := 30) -> void:
 	var a := Area3D.new()
 	a.position = pos + Vector3(0.4, 0.15, 0.3)
 	var shape := SphereShape3D.new()
 	shape.radius = 1.1
 	B.add_shape(a, shape, Vector3.ZERO)
 	var M := preload("res://scripts/mats.gd")
-	B.box(a, Vector3(0.35, 0.2, 0.22), Vector3.ZERO, M.tinted("uniform", Color(0.55, 0.6, 0.45)), false)
-	B.box(a, Vector3(0.36, 0.04, 0.23), Vector3(0, 0.05, 0), M.emissive(Color(1, 0.8, 0.3), 1.5), false)
+	var c: Color = AMMO_COLORS.get(kind, Color(0.55, 0.6, 0.45))
+	B.box(a, Vector3(0.3, 0.16, 0.2), Vector3.ZERO, M.tinted("uniform", c), false)
+	B.box(a, Vector3(0.31, 0.03, 0.21), Vector3(0, 0.045, 0), M.emissive(Color(1, 0.8, 0.3), 1.2), false)
 	add_child(a)
 	a.body_entered.connect(func(b):
 		if b == player and is_instance_valid(a):
-			player.weapon.reserve += 30
-			hud.hint("+30 AMMO", 1.2)
+			var k: String = kind if kind != "" else player.weapon.ammo_type()
+			if k == "":
+				k = "5.56"
+			player.weapon.add_ammo(k, amount)
+			hud.hint("+%d  %s AMMO" % [amount, k], 1.4)
 			S.play2d(self, "reload", -12.0)
 			a.queue_free())
 
 
+## Supply cache at a checkpoint: carbine + pistol ammo
+func spawn_supply_cache(pos: Vector3) -> void:
+	for c in _caches_at:
+		if (c as Vector3).distance_to(pos) < 20.0:
+			return
+	_caches_at.append(pos)
+	spawn_ammo(pos + Vector3(1.0, 0.0, 0.6), "5.56", 60)
+	spawn_ammo(pos + Vector3(1.4, 0.0, 0.2), "9mm", 30)
+
+
+## A gun lying on the ground that the player can pick up (F)
+func spawn_weapon_drop(gun_id: String, pos: Vector3, mag: int) -> void:
+	const MD := preload("res://scripts/models.gd")
+	var root := Node3D.new()
+	add_child(root)
+	root.global_position = pos
+	root.set_meta("gun_id", gun_id)
+	root.set_meta("mag", mag)
+	var g := MD.place(root, String(WeaponScript.GUNS[gun_id]["model"]), Vector3.ZERO)
+	if g:
+		g.rotation_degrees = Vector3(0, randf() * 360.0, 90)   # lying on its side
+	# settle it on the ground
+	var q := PhysicsRayQueryParameters3D.create(pos + Vector3(0, 1.0, 0), pos + Vector3(0, -6.0, 0))
+	q.exclude = [player.get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	if not hit.is_empty():
+		root.global_position = hit.position + Vector3(0, 0.05, 0)
+	# faint glint so it can be spotted
+	B.omni(root, Vector3(0, 0.4, 0), Color(1, 0.85, 0.5), 0.6, 2.0)
+	weapon_drops.append(root)
+
+
 func on_enemy_killed(enemy, headshot: bool) -> void:
 	kills += 1
-	spawn_ammo(enemy.global_position)
+	# They drop their gun and a pouch of ammo for it
+	var gid: String = enemy.weapon_id()
+	var gpos: Vector3 = enemy.global_position + Vector3(0, 0.5, 0)
+	if enemy.gun_node and is_instance_valid(enemy.gun_node):
+		gpos = enemy.gun_node.global_position
+		enemy.gun_node.visible = false
+	spawn_weapon_drop(gid, gpos + enemy.global_transform.basis.x * 0.4, randi_range(6, int(WeaponScript.GUNS[gid]["mag"])))
+	spawn_ammo(enemy.global_position, String(WeaponScript.GUNS[gid]["ammo"]), 10 if gid == "dmr" else 20)
+	if randf() < 0.3:
+		spawn_ammo(enemy.global_position + Vector3(-0.6, 0, 0.2), "9mm", 15)
 	if headshot:
 		headshots += 1
 		hud.hint("HEADSHOT", 1.2)
@@ -367,6 +419,7 @@ func set_checkpoint(pos: Vector3, yaw: float, announce := true) -> void:
 	checkpoint_pos = pos
 	checkpoint_yaw = yaw
 	if announce:
+		spawn_supply_cache(pos)
 		hud.hint("CHECKPOINT", 2.0)
 
 

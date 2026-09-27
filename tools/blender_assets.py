@@ -584,6 +584,144 @@ def supply_truck():
     export("supply_truck")
 
 
+
+def _hollow_tube(name, r, length, loc, material, thick=0.003):
+    """Open-ended tube along Y (optic / scope bodies you can see through)."""
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=length, vertices=20, location=loc, rotation=(math.radians(90), 0, 0))
+    tube = bpy.context.active_object
+    tube.name = name
+    bm = bmesh.new()
+    bm.from_mesh(tube.data)
+    caps = [f for f in bm.faces if abs(f.normal.y) > 0.9]
+    bmesh.ops.delete(bm, geom=caps, context="FACES_ONLY")
+    bm.to_mesh(tube.data)
+    bm.free()
+    solid = tube.modifiers.new("solid", "SOLIDIFY")
+    solid.thickness = thick
+    return _finish(tube, material)
+
+
+def ak():
+    """AK-74 style rifle carried by Kranor troops. Barrel along +Y. Iron-sight line at z = 0.058. Muzzle at y = 0.66."""
+    reset()
+    M, W = "gun_metal", "wood"
+    box("receiver", (0.05, 0.3, 0.058), (0, 0.0, 0.0), M, 0.004)
+    box("dust_cover", (0.046, 0.26, 0.02), (0, -0.01, 0.036), M, 0.008)
+    for i in range(5):
+        box("cover_rib", (0.048, 0.008, 0.004), (0, -0.09 + i * 0.04, 0.047), M)
+    box("trunnion", (0.052, 0.05, 0.06), (0, 0.17, 0.0), M, 0.004)
+    box("selector", (0.004, 0.12, 0.018), (0.027, 0.0, 0.012), M)
+    box("charging_handle", (0.03, 0.012, 0.012), (0.035, 0.08, 0.01), M)
+    # curved steel magazine
+    for i in range(8):
+        a = i * 5.0
+        box("mag", (0.03, 0.07, 0.03), (0, 0.075 + i * 0.012 + i * i * 0.001, -0.05 - i * 0.026), "gun_metal", 0.003, rot=(a, 0, 0))
+    box("grip", (0.034, 0.045, 0.1), (0, -0.07, -0.075), "gun_polymer", 0.008, rot=(-20, 0, 0))
+    box("trigger_guard", (0.008, 0.07, 0.006), (0, -0.01, -0.045), M)
+    # wooden stock
+    box("stock_neck", (0.034, 0.12, 0.04), (0, -0.2, -0.01), W, 0.008, rot=(-6, 0, 0))
+    box("stock", (0.04, 0.2, 0.075), (0, -0.33, -0.04), W, 0.012, rot=(-6, 0, 0))
+    box("butt_plate", (0.042, 0.01, 0.085), (0, -0.435, -0.05), M, 0.003)
+    # wooden handguards
+    box("lower_guard", (0.05, 0.2, 0.045), (0, 0.29, -0.005), W, 0.012)
+    box("upper_guard", (0.04, 0.17, 0.028), (0, 0.29, 0.042), W, 0.01)
+    cyl("gas_tube", 0.011, 0.2, (0, 0.3, 0.035), M, rot=(90, 0, 0), verts=10)
+    box("gas_block", (0.03, 0.03, 0.05), (0, 0.44, 0.022), M, 0.003)
+    cyl("barrel", 0.01, 0.26, (0, 0.5, 0.0), M, rot=(90, 0, 0), verts=12)
+    cyl("brake", 0.014, 0.07, (0, 0.645, 0.0), M, rot=(90, 0, 0), verts=12, bevel=0.002)
+    # iron sights
+    box("rear_sight", (0.03, 0.03, 0.02), (0, 0.13, 0.05), M, 0.002)
+    box("rear_notch", (0.006, 0.032, 0.012), (0, 0.13, 0.062), "black")
+    box("front_post_base", (0.018, 0.02, 0.05), (0, 0.6, 0.03), M, 0.002)
+    box("front_post", (0.004, 0.004, 0.02), (0, 0.6, 0.058), M)
+    torus("front_hood", 0.012, 0.002, (0, 0.6, 0.058), M, rot=(90, 0, 0), segs=12)
+    box("sling_loop", (0.006, 0.02, 0.02), (0, 0.42, -0.04), M)
+    export("ak")
+
+
+def dmr():
+    """Scoped marksman rifle dropped by Kranor snipers. Barrel along +Y. Scope axis at z = 0.075. Muzzle at y = 0.86."""
+    reset()
+    M, W = "gun_metal", "wood"
+    box("receiver", (0.048, 0.32, 0.055), (0, 0.0, 0.0), M, 0.004)
+    box("mag", (0.03, 0.08, 0.07), (0, 0.06, -0.06), M, 0.004, rot=(8, 0, 0))
+    box("trigger_guard", (0.008, 0.07, 0.006), (0, -0.04, -0.045), M)
+    # skeleton stock + pistol grip in wood
+    box("grip", (0.034, 0.045, 0.1), (0, -0.1, -0.075), W, 0.01, rot=(-22, 0, 0))
+    box("stock_top", (0.036, 0.3, 0.03), (0, -0.3, 0.005), W, 0.01)
+    box("stock_bottom", (0.036, 0.22, 0.03), (0, -0.34, -0.085), W, 0.01, rot=(12, 0, 0))
+    box("stock_rear", (0.038, 0.04, 0.12), (0, -0.45, -0.04), W, 0.01)
+    box("cheek_rest", (0.034, 0.14, 0.02), (0, -0.3, 0.03), "gun_polymer", 0.006)
+    box("butt_pad", (0.04, 0.012, 0.125), (0, -0.475, -0.04), "gear", 0.004)
+    box("handguard", (0.05, 0.32, 0.05), (0, 0.33, 0.0), W, 0.012)
+    for i in range(6):
+        box("vent", (0.052, 0.02, 0.008), (0, 0.22 + i * 0.045, 0.012), M)
+    cyl("barrel", 0.011, 0.4, (0, 0.66, 0.005), M, rot=(90, 0, 0), verts=12)
+    cyl("flash_hider", 0.015, 0.06, (0, 0.85, 0.005), M, rot=(90, 0, 0), verts=10, bevel=0.002)
+    # scope: rings, tube, objective and eyepiece bells, turrets, lenses
+    for yy in (-0.03, 0.1):
+        box("scope_ring", (0.04, 0.02, 0.05), (0, yy, 0.05), M, 0.004)
+    _hollow_tube("scope_tube", 0.016, 0.26, (0, 0.035, 0.075), M)
+    cyl("objective", 0.026, 0.07, (0, 0.2, 0.075), M, rot=(90, 0, 0), verts=20, r2=0.018)
+    cyl("eyepiece", 0.021, 0.06, (0, -0.12, 0.075), M, rot=(-90, 0, 0), verts=20, r2=0.017)
+    cyl("lens_front", 0.023, 0.004, (0, 0.235, 0.075), "glass", rot=(90, 0, 0), verts=20)
+    cyl("lens_rear", 0.018, 0.004, (0, -0.15, 0.075), "glass", rot=(90, 0, 0), verts=20)
+    cyl("turret_top", 0.012, 0.03, (0, 0.04, 0.1), M, verts=14, bevel=0.002)
+    cyl("turret_side", 0.012, 0.03, (0.027, 0.04, 0.075), M, rot=(0, 90, 0), verts=14, bevel=0.002)
+    cyl("bipod_leg_l", 0.005, 0.18, (-0.018, 0.42, -0.1), M, rot=(10, -8, 0), verts=6)
+    cyl("bipod_leg_r", 0.005, 0.18, (0.018, 0.42, -0.1), M, rot=(10, 8, 0), verts=6)
+    export("dmr")
+
+
+def pistol():
+    """Service pistol (sidearm). Barrel along +Y. Sight line at z = 0.034. Muzzle at y = 0.1."""
+    reset()
+    M = "gun_metal"
+    box("slide", (0.03, 0.19, 0.032), (0, 0.0, 0.0), M, 0.004)
+    for i in range(7):
+        box("serration", (0.032, 0.004, 0.026), (0, -0.085 + i * 0.008, 0.0), "black")
+    box("port", (0.002, 0.04, 0.014), (0.0155, 0.02, 0.004), "black")
+    box("frame", (0.028, 0.16, 0.024), (0, 0.005, -0.026), "gun_polymer", 0.004)
+    box("rail", (0.022, 0.05, 0.01), (0, 0.06, -0.042), "gun_polymer")
+    box("grip", (0.03, 0.05, 0.11), (0, -0.065, -0.085), "gun_polymer", 0.008, rot=(-14, 0, 0))
+    box("trigger_guard", (0.006, 0.05, 0.006), (0, 0.02, -0.058), "gun_polymer")
+    box("trigger", (0.006, 0.006, 0.02), (0, 0.01, -0.045), M)
+    box("mag_base", (0.032, 0.054, 0.01), (0, -0.078, -0.142), M, 0.002, rot=(-14, 0, 0))
+    cyl("barrel", 0.007, 0.02, (0, 0.1, 0.004), M, rot=(90, 0, 0), verts=10)
+    box("rear_sight", (0.024, 0.01, 0.01), (0, -0.085, 0.022), M)
+    box("front_sight", (0.004, 0.008, 0.01), (0, 0.085, 0.022), M)
+    box("hammer", (0.008, 0.012, 0.018), (0, -0.1, -0.005), M, rot=(20, 0, 0))
+    export("pistol")
+
+
+def knife():
+    """Combat knife held in the right hand. Blade along +Y."""
+    reset()
+    # blade: flat wedge with a clipped tip, darkened steel
+    bm = bmesh.new()
+    pts = [(0, 0.0, 0.012), (0, 0.15, 0.012), (0, 0.19, 0.0), (0, 0.16, -0.01), (0, 0.0, -0.016)]
+    top = [bm.verts.new((x + 0.002, y, z)) for x, y, z in pts]
+    bot = [bm.verts.new((x - 0.002, y, z)) for x, y, z in pts]
+    bm.faces.new(top)
+    bm.faces.new(list(reversed(bot)))
+    n = len(pts)
+    for i in range(n):
+        bm.faces.new([top[i], top[(i + 1) % n], bot[(i + 1) % n], bot[i]])
+    me = bpy.data.meshes.new("blade")
+    bm.to_mesh(me)
+    bm.free()
+    ob = bpy.data.objects.new("blade", me)
+    bpy.context.collection.objects.link(ob)
+    _finish(ob, "metal")
+    box("edge_bevel", (0.001, 0.15, 0.004), (0, 0.075, -0.014), "metal")
+    box("guard", (0.02, 0.012, 0.05), (0, -0.006, -0.002), "gun_metal", 0.003)
+    cyl("handle", 0.014, 0.11, (0, -0.065, -0.002), "gear", rot=(90, 0, 0), verts=10, bevel=0.003)
+    for i in range(5):
+        cyl("handle_ring", 0.0145, 0.004, (0, -0.03 - i * 0.017, -0.002), "black", rot=(90, 0, 0), verts=10)
+    cyl("pommel", 0.013, 0.015, (0, -0.125, -0.002), "gun_metal", rot=(90, 0, 0), verts=10, bevel=0.003)
+    export("knife")
+
+
 def technical():
     """Pickup truck ('technical'). Front toward +Y. Gun mount point in the bed at (0, -1.2, 1.35)."""
     reset()
@@ -993,7 +1131,7 @@ def downpipe():
     export("downpipe")
 
 
-ALL = ["transformer", "power_pole", "rollup_door", "window_frame", "hvac_unit", "wall_lamp", "downpipe", "soldier", "raskov", "supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree"]
+ALL = ["transformer", "power_pole", "rollup_door", "window_frame", "hvac_unit", "wall_lamp", "downpipe", "soldier", "raskov", "supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree", "ak", "dmr", "pistol", "knife"]
 
 if __name__ == "__main__":
     todo = [a for a in sys.argv[1:] if a in ALL] or ALL
