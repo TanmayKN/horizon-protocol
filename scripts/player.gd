@@ -107,6 +107,28 @@ func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## Walk up small ledges (kerbs, door sills, floor slabs) instead of getting stuck on them
+const STEP_HEIGHT := 0.35
+func _try_step_up(vel: Vector3, delta: float) -> void:
+	var horiz := Vector3(vel.x, 0, vel.z)
+	if not is_on_floor() or not is_on_wall() or horiz.length() < 0.5:
+		return
+	var motion := horiz.normalized() * maxf(horiz.length() * delta, 0.12)
+	var up := Vector3(0, STEP_HEIGHT, 0)
+	var start := global_transform
+	if test_move(start, up):
+		return                                   # something above: can't step
+	var raised := start.translated(up)
+	if test_move(raised, motion):
+		return                                   # still blocked higher up: it's a real wall
+	var moved := raised.translated(motion)
+	var col := KinematicCollision3D.new()
+	if test_move(moved, -up, col):
+		var drop: float = col.get_travel().length()
+		if drop > 0.02:
+			global_position = moved.origin - Vector3(0, drop - 0.01, 0)
+
+
 ## Vance's full body, only shown in third person
 func _build_body() -> void:
 	body_model = MD.place(self, "soldier", Vector3.ZERO)
@@ -329,7 +351,9 @@ func _physics_process(delta: float) -> void:
 		velocity.x = lerpf(velocity.x, dir.x * speed, clampf(accel * delta, 0.0, 1.0))
 		velocity.z = lerpf(velocity.z, dir.z * speed, clampf(accel * delta, 0.0, 1.0))
 
+	var pre_move_vel := velocity
 	move_and_slide()
+	_try_step_up(pre_move_vel, delta)
 
 	# Landing
 	if is_on_floor() and not _was_on_floor:

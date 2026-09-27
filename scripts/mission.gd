@@ -47,13 +47,17 @@ const GUARD := "Guard (overheard)"
 const GUARD2 := "Guard 2 (overheard)"
 
 
+## What the downloaded data tells you (and what you do with it)
+const LOGS_TEXT := "WHAT THE DATA SAYS:\n- The Horizon Protocol (a drive that can shut down any country's defences) is NOT at Kranor.\n- It is locked in the vault at SITE 9, Raskov's bunker at the top of the mountain pass.\n- A buyer called 'H' collects it at 07:00.\n- Vault override code: 4-7-1-9.\n- Raskov knew you were coming. Someone on our side leaked the mission.\n\nWHAT YOU DO WITH IT:\nEscape Kranor, get up the pass to Site 9, kill Raskov, use the code to open the vault and take the drive before H arrives.\nFind all 6 intel documents to find out who 'H' is."
+
+
 func _setup_story() -> void:
 	game.spawn_intel(Vector3(-26, 0.97, 8), "Shipping manifest", "TIMBERLINE LOGGING CO.  -  night shipments\n\nCrates marked KR-9 go straight to Kranor, NOT to the mill. Do not open them. Do not log them.\nAnyone asking questions answers to Vanguard.\n\n- V.C. Logistics")
 	game.spawn_intel(Vector3(0.9, 9.22, 17.0), "Tower sniper's logbook", "02:40  Convoy through the pass. Four trucks, one jeep. The General rode in the jeep.\n03:15  Orders: shoot anything that moves near the wire. No warnings.\n04:10  Rain again. Searchlight motor keeps sticking.")
 	game.spawn_intel(Vector3(42.8, 0.22, 60.0), "Guard rota note", "QRF sleeps in the admin block.\nGrid test scheduled for 05:00. If the lights go out, it is a DRILL.\n\n(Someone has scrawled underneath: 'unless it isn't')")
 	game.spawn_intel(Vector3(43.3, 4.42, 110.1), "Printed email", "FROM: V. Raskov\nTO: Kranor Admin\n\nSite 9 is ready. The Protocol stays there until the buyer arrives at 07:00.\nKranor keeps the logs as bait. If anyone comes for them, cut the power and let the QRF do its job.")
-	game.spawn_intel(Vector3(7.5, 19.25, 668.0), "Vanguard personnel file", "SUBJECT: MAJ. ELENA VANCE\nStatus: EXPECTED.\n\n'She will come alone and she will not come quietly. Do not underestimate her.'\n- Source: 'H'")
-	game.spawn_intel(Vector3(-2.0, 23.07, 696.3), "Encrypted message on Raskov's console", "DECRYPTED:\n\nPackage inbound. Payment on delivery.\nVance is handled. The leak has been useful.\n\n- H.")
+	game.spawn_intel(Vector3(7.5, 19.25, 668.0), "Vanguard personnel file", "SUBJECT: MAJ. ELENA VANCE\nStatus: EXPECTED.\n\nInsertion route, radio codes and Sgt. Reyes' position all supplied by our friend at Allied Command.\n'She will come alone and she will not come quietly.'\n- Source: 'H'  (colonel's clearance)")
+	game.spawn_intel(Vector3(-2.0, 23.07, 696.3), "Encrypted message on Raskov's console", "DECRYPTED:\n\nPackage inbound. Payment on delivery.\nVance is handled. The leak has been useful.\n\nReply routed to: A. HALE, Allied Command liaison office.\n- H.")
 	_overheard = [
 		{"pos": Vector3(-24, 0, 12), "r": 17.0, "done": false, "lines": [
 			[GUARD, "Why are we guarding logs in the pouring rain?"],
@@ -206,6 +210,8 @@ func _go(new_step: String) -> void:
 			game.player.add_shake(1.2)
 			hud.title("SEGMENT 3", "The Ambush and Comms Jam     |     The Admin Block")
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
+			game.add_story("RASKOV'S LOGS  (downloaded at Kranor)", LOGS_TEXT)
+			hud.show_intel("RASKOV'S LOGS - DOWNLOADED", LOGS_TEXT, 0, 0)
 			say(VANCE, "Download complete. Reyes, the logs point to Site 9, Raskov's bunker up the pass. The Protocol isn't here-", 0.2, true)
 			say(OVERWATCH, "Vance, the grid just went- that wasn't us. Vanguard QRF is on the stairs!", 0.3, false, true)
 			hud.hint("COMMS JAMMED", 4.0)
@@ -239,7 +245,7 @@ func _go(new_step: String) -> void:
 			game.seg4.visible = true
 			game.seg2.stop_alarm()
 			say(OVERWATCH, "Vance! I've got a supply truck. I'm bringing it under the west window. When I say jump, you JUMP!", 0.2, true)
-			_goal("Run to the smashed window and jump", "Reyes is bringing a truck under the window - just walk into the window", game.seg2.WINDOW_POS + Vector3(0, 1.2, 0))
+			_goal("Run to the smashed window and jump", "Stand at the window and press  F  to jump onto Reyes' truck", game.seg2.WINDOW_POS + Vector3(0, 1.2, 0))
 		"s4_escape":
 			hud.prompt("")
 			hud.set_objective("")
@@ -265,7 +271,7 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Argh... my leg's pinned under the dash. I'll hold the entrance.", 1.5, true)
 			say(OVERWATCH, "Go, Vance. Raskov is in there. Finish it.")
 			say(RASKOV_PA, "Welcome to Site 9, Major. You've come a long way to die underground.", 1.5)
-			_goal("Get into the bunker", "Head through the big doors ahead (marker)", Vector3(10, 20.5, 648))
+			_goal("Fight through the bunker to the server room", "Go round the barrier and through the door at the back of the hall (marker)", Vector3(10, 20.5, 648))
 			_spawn_segment5()
 		"s5_server":
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
@@ -281,7 +287,7 @@ func _go(new_step: String) -> void:
 			_goal("Blow the door open", "Stand at the door and HOLD  F  to plant the charge, then step back", game.seg5.BREACH_POS + Vector3(0, 1.6, -0.4))
 		"s5_raskov":
 			hud.prompt("")
-			_goal("Kill Raskov - he has the key to the vault", "He is the officer in the red beret.  His guards will cover him")
+			_goal("Kill Raskov before the buyer 'H' arrives", "He is the officer in the red beret.  His guards will cover him")
 		"s5_vault":
 			game.seg5.set_ambience(true)
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
@@ -656,9 +662,9 @@ func _do_vault(delta: float) -> void:
 			return
 	if Input.is_action_pressed("interact") and game.player.controls_enabled:
 		_vault_progress += delta / 3.0
-		hud.prompt("Overriding vault lock...", _vault_progress)
+		hud.prompt("Entering code 4-7-1-9 from Raskov's logs...", _vault_progress)
 	elif _vault_progress < 1.0:
-		hud.prompt("Hold  F  to override the vault lock", _vault_progress if _vault_progress > 0 else -1.0)
+		hud.prompt("Hold  F  to enter the vault code from the logs (4719)", _vault_progress if _vault_progress > 0 else -1.0)
 	if _vault_progress >= 1.0:
 		game.seg5.open_vault()
 		_go("s5_drive")

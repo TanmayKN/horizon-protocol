@@ -218,7 +218,13 @@ var _cone_x: Array = []
 var _bush_x: Array = []
 
 
+func _near_bunker(p: Vector3) -> bool:
+	return p.z > 594.0 and p.x > -90.0 and p.x < 110.0     # keep foliage out of Site 9's rock and walls
+
+
 func _tree(p: Vector3, h: float) -> void:
+	if _near_bunker(p):
+		return
 	_trunk_x.append(Transform3D(Basis().scaled(Vector3(0.3, h, 0.3)), p + Vector3(0, h / 2.0, 0)))
 	if M.tex("pine_card_albedo") != null:
 		var whorls := int(h / 1.1)
@@ -237,6 +243,8 @@ func _tree(p: Vector3, h: float) -> void:
 
 
 func _bush(p: Vector3) -> void:
+	if _near_bunker(p):
+		return
 	_bush_x.append(Transform3D(Basis().scaled(Vector3(rng.randf_range(1.2, 2.2), rng.randf_range(0.8, 1.5), rng.randf_range(1.2, 2.2))), p + Vector3(0, 0.6, 0)))
 
 
@@ -734,5 +742,13 @@ func rewind() -> void:
 func dismount() -> Vector3:
 	# Vance rolls out of the wreck onto the bunker floor
 	game.player.set_carrier(null)
+	# The parked wreck is solid from now on (you can't walk through it)
+	if truck.get_node_or_null("wreck_body") == null:
+		var body := StaticBody3D.new()
+		body.name = "wreck_body"
+		truck.add_child(body)
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(2.6, 3.0, 9.4)
+		B.add_shape(body, shape, Vector3(0, 1.5, 0))
 	var side := truck.global_transform.basis.x
 	return truck.global_position + side * 2.4 + Vector3(0, 0.5, 0)

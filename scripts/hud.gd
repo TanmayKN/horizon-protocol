@@ -505,11 +505,11 @@ func show_intel(title: String, body: String, count: int, total: int) -> void:
 		_intel_body = _label("", 16, Color(0.9, 0.9, 0.86), vb)
 		_intel_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_intel_body.custom_minimum_size = Vector2(400, 0)
-	_intel_title.text = "INTEL  %d / %d   -   %s" % [count, total, title]
+	_intel_title.text = ("INTEL  %d / %d   -   %s" % [count, total, title]) if total > 0 else title
 	_intel_body.text = body
 	_intel_panel.visible = true
 	_intel_panel.modulate.a = 1.0
-	_intel_hide = _t + 10.0
+	_intel_hide = _t + (10.0 if total > 0 else 16.0)
 
 
 func end_card(line1: String, body: String) -> void:

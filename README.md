@@ -23,6 +23,8 @@ You have **5 weapon slots** (keys 1-5). You start with a suppressed **M4 carbine
 - Ammo is separate for each calibre and **you have to pick it up**: soldiers drop ammo pouches, and each checkpoint has a supply cache with 5.56 and 9mm. Press F on a gun you already have to take its ammo.
 - Your M4 is suppressed, so only nearby enemies hear it. The captured guns are **loud** and alert everyone around.
 
+The data you download at Kranor tells you where the Horizon Protocol is hidden and gives you the vault code. Everything you learn is saved in **Esc → Intel & Story**. Find all **6 hidden intel documents** to find out who the traitor 'H' is (it changes the ending).
+
 Find the **6 hidden intel documents** and listen in on the guards' conversations to learn the full story.
 
 ## Controls

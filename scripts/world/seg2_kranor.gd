@@ -361,7 +361,7 @@ func _build_admin() -> void:
 		B.box(self, Vector3(3.6, 1.0, 0.06), Vector3(47.2, f * FLOOR_H + 0.5, 106.0), rail)
 		B.box(self, Vector3(0.06, 1.0, 10.0), Vector3(49.0, f * FLOOR_H + 0.5, 111.0), rail)
 	B.box(self, Vector3(16.6, 0.3, 16.6), Vector3(44, 3 * FLOOR_H + 0.15, 108), con)
-	B.box(self, Vector3(16, 0.1, 16), Vector3(44, 0.05, 108), inner)
+	B.box(self, Vector3(15.7, 0.04, 15.7), Vector3(44, 0.02, 108), inner, false)
 	# Switchback stairs: flight A climbs south to a half landing, flight B climbs back north to the next floor
 	for f in 2:
 		var y0: float = f * FLOOR_H

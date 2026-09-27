@@ -78,7 +78,7 @@ func _build_shell() -> void:
 	# Portal face with the blast gate
 	var con := M.get_mat("concrete")
 	B.wall_openings(self, Vector3(-22, Y, GATE_Z), Vector3(42, Y, GATE_Z), 12.0, 2.0, con, [[25, 14, 0, 7.5]])
-	B.box(self, Vector3(16, 1.2, 3), Vector3(10, Y + 8.1, GATE_Z - 0.5), M.get_mat("hazard"), false)
+	B.box(self, Vector3(16, 1.2, 3.3), Vector3(10, Y + 8.1, GATE_Z - 0.62), M.get_mat("hazard"), false)
 	B.label3d(self, "VANGUARD CORP  -  SITE 9", Vector3(10, Y + 9.6, GATE_Z - 1.1), 96, Color(0.85, 0.85, 0.8), Vector3(0, 180, 0))
 	B.omni(self, Vector3(10, Y + 7.5, GATE_Z - 3), Color(1, 0.8, 0.5), 2.0, 16.0)
 	# The gate (the truck smashes it)
@@ -135,7 +135,7 @@ func _build_hall() -> void:
 	B.box(self, Vector3(20, 0.5, 28), Vector3(10, Y + h + 0.25, 618), con)
 	# Concrete barrier the truck ends up pinned against
 	B.box(self, Vector3(10, 1.3, 1.2), Vector3(10, Y + 0.65, 626), M.tinted("concrete", Color(0.75, 0.72, 0.65)))
-	B.box(self, Vector3(10, 0.3, 1.25), Vector3(10, Y + 1.3, 626), M.get_mat("hazard"), false)
+	B.box(self, Vector3(10.04, 0.3, 1.24), Vector3(10, Y + 1.31, 626), M.get_mat("hazard"), false)
 	# Crates, sandbag positions, drums, a jeep
 	for cp in [Vector3(3, 0, 610), Vector3(4.4, 0, 611), Vector3(16, 0, 622), Vector3(3.5, 0, 628)]:
 		var cb := StaticBody3D.new()
@@ -177,7 +177,7 @@ func _build_tunnels() -> void:
 	# East from the hall
 	B.wall_openings(self, Vector3(20, Y, 614), Vector3(32, Y, 614), 2.8, 0.3, con, [])
 	B.wall_openings(self, Vector3(20, Y, 617.4), Vector3(30, Y, 617.4), 2.8, 0.3, con, [])
-	B.box(self, Vector3(12, 0.3, 3.6), Vector3(26, Y + 2.95, 615.7), con)
+	B.box(self, Vector3(12, 0.3, 3.6), Vector3(26, Y + 2.96, 615.7), con)
 	# North to the server room
 	B.wall_openings(self, Vector3(29.7, Y, 617.4), Vector3(29.7, Y, 660), 2.8, 0.3, con, [])
 	B.wall_openings(self, Vector3(32.3, Y, 614), Vector3(32.3, Y, 660), 2.8, 0.3, con, [])
@@ -204,7 +204,7 @@ func _build_server_room() -> void:
 	# Rows of racks glowing blue
 	var rack := M.get_mat("gear")
 	var blue := M.emissive(Color(0.15, 0.45, 1.0), 3.0)
-	for rx in [-8.0, -4.0, 0.0, 4.0, 18.0, 22.0, 26.0]:
+	for rx in [-4.0, 0.0, 4.0, 18.0, 22.0, 26.0]:     # (no rack row at x -8: that is where the stairs go)
 		var rz := 664.0
 		while rz < 688.0:
 			if rng.randf() < 0.85:
@@ -248,8 +248,8 @@ func _build_command_center() -> void:
 	for cx in [-2.0, 4.0, 10.0, 16.0, 22.0]:
 		B.box(self, Vector3(3.5, 1.0, 1.0), Vector3(cx, CMD_FLOOR + 0.5, 696), M.get_mat("gear"))
 		B.box(self, Vector3(3.2, 0.5, 0.05), Vector3(cx, CMD_FLOOR + 1.3, 696.3), M.emissive(Color(0.9, 0.5, 0.15), 1.2), false)
-	B.box(self, Vector3(14, 4.5, 0.2), Vector3(10, CMD_FLOOR + 3.2, 705.6), M.emissive(Color(0.15, 0.35, 0.3), 1.2), false)
-	B.label3d(self, "HORIZON PROTOCOL  //  LAUNCH AUTHORITY: RASKOV", Vector3(10, CMD_FLOOR + 3.4, 705.4), 44, Color(0.6, 1.0, 0.8), Vector3(0, 180, 0))
+	B.box(self, Vector3(14, 4.5, 0.1), Vector3(10, CMD_FLOOR + 3.2, 705.38), M.emissive(Color(0.15, 0.35, 0.3), 1.2), false)   # sits in front of the vault wall (was z-fighting)
+	B.label3d(self, "HORIZON PROTOCOL  //  LAUNCH AUTHORITY: RASKOV", Vector3(10, CMD_FLOOR + 3.4, 705.3), 44, Color(0.6, 1.0, 0.8), Vector3(0, 180, 0))
 	B.omni(self, Vector3(10, CMD_FLOOR + 4, 699), Color(1.0, 0.8, 0.6), 1.2, 16.0)
 	B.box(self, Vector3(44, 0.4, 14), Vector3(10, CMD_FLOOR + 5.4, 699), con, false)
 

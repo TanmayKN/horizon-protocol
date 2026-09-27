@@ -32,6 +32,7 @@ var shots_fired := 0
 var play_time := 0.0
 var intel_found := 0
 var intel_total := 0
+var story_log: Array = []      # everything Vance has learned: [{title, body}] (shown in Esc > Intel & Story)
 var _intel_near = null
 var weapon_drops: Array = []     # guns lying on the ground (Node3D with meta gun_id / mag)
 var _caches_at: Array = []
@@ -166,14 +167,16 @@ func _optimize(root_node: Node) -> void:
 		var size := 0.0
 		if g is MeshInstance3D and (g as MeshInstance3D).mesh:
 			size = (g as MeshInstance3D).mesh.get_aabb().size.length() * g.global_transform.basis.get_scale().length() / 1.7
+		# Only small clutter is culled; roads, walls, cliffs and buildings always stay visible
 		if size < 1.2:
-			g.visibility_range_end = 40.0
+			g.visibility_range_end = 60.0
 			g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		elif size < 5.0:
-			g.visibility_range_end = 85.0
-		else:
+		elif size < 4.0:
 			g.visibility_range_end = 150.0
-		g.visibility_range_end_margin = 8.0
+		else:
+			g.visibility_range_end = 0.0
+		g.visibility_range_end_margin = 10.0
+		g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
 
 
 # ------------------------------------------------------------------ queries
@@ -235,6 +238,10 @@ func on_enemy_alerted(enemy) -> void:
 
 
 ## Collectible intel document: walk up and press F to read it
+func add_story(title: String, body: String) -> void:
+	story_log.append({"title": title, "body": body})
+
+
 func spawn_intel(pos: Vector3, title: String, body: String) -> void:
 	intel_total += 1
 	var M := preload("res://scripts/mats.gd")
@@ -277,6 +284,9 @@ func _check_intel() -> void:
 	if Input.is_action_just_pressed("interact"):
 		intel_found += 1
 		hud.show_intel(_intel_near.get_meta("title"), _intel_near.get_meta("body"), intel_found, intel_total)
+		story_log.append({"title": "Intel: " + String(_intel_near.get_meta("title")), "body": String(_intel_near.get_meta("body"))})
+		if intel_found == intel_total:
+			hud.hint("ALL INTEL FOUND  -  you know who 'H' is. Check Esc > Intel & Story", 5.0)
 		S.play2d(self, "beep", -10.0)
 		hud.prompt("")
 		_intel_near.queue_free()
@@ -430,10 +440,13 @@ func finish_game() -> void:
 	await get_tree().create_timer(2.8).timeout
 	var mins := int(play_time / 60.0)
 	var secs := int(play_time) % 60
+	var h_line := "The buyer, known only as 'H', was never found.\n(Find all %d intel documents to unmask H.)" % intel_total
+	if intel_found >= intel_total:
+		h_line = "Thanks to the intel Vance recovered, 'H' was unmasked: Colonel Adrian Hale of Allied Command,\nthe man who sent her in. He was arrested before the buyer's plane ever landed."
 	var acc := 0
 	if shots_fired > 0:
 		acc = int(100.0 * float(kills * 3) / float(shots_fired))
-	hud.end_card("MISSION COMPLETE", "THE HORIZON PROTOCOL\n\nThe Horizon Protocol was recovered at 06:31.\nWithout Raskov, the Vanguard Corp network collapsed within the week.\nMajor Elena Vance and Sgt. Marcus Reyes were extracted from Site 9 by Nightingale 2-1.\nThe buyer, known only as 'H', was never found.\n\nTime  %d:%02d      Kills  %d      Headshots  %d      Intel  %d / %d\n\n- - -\n\nA game by Tanmay\nBuilt in Godot with Claude\n\nThanks for playing." % [mins, secs, kills, headshots, intel_found, intel_total])
+	hud.end_card("MISSION COMPLETE", "THE HORIZON PROTOCOL\n\nThe Horizon Protocol was recovered at 06:31.\nWithout Raskov, the Vanguard Corp network collapsed within the week.\nMajor Elena Vance and Sgt. Marcus Reyes were extracted from Site 9 by Nightingale 2-1.\n%s\n\nTime  %d:%02d      Kills  %d      Headshots  %d      Intel  %d / %d\n\n- - -\n\nA game by Tanmay\nBuilt in Godot with Claude\n\nThanks for playing." % [h_line, mins, secs, kills, headshots, intel_found, intel_total])
 
 
 ## Short slow-motion moment (used for the final breach)

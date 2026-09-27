@@ -58,6 +58,7 @@ func _ready() -> void:
 	vb.add_child(sub)
 	_button(vb, "Resume", _resume)
 	_button(vb, "Restart from checkpoint", _restart)
+	_button(vb, "Intel & Story  (what you know)", _show_story)
 	_button(vb, "Controls", _show_controls)
 	_button(vb, "First / third person view  (V)", func(): game.player.toggle_view())
 	var sl := Label.new()
@@ -87,10 +88,70 @@ func _ready() -> void:
 	help.add_theme_font_size_override("font_size", 12)
 	help.add_theme_color_override("font_color", Color(0.6, 0.62, 0.65))
 	vb.add_child(help)
-	panel.offset_top = -270
-	panel.offset_bottom = 270
+	panel.offset_top = -295
+	panel.offset_bottom = 295
 	_build_controls()
+	_build_story()
 	visible = false
+
+
+# ------------------------------------------------------------------ intel & story screen
+
+var story_panel: PanelContainer
+var story_text: RichTextLabel
+
+const STORY_INTRO := "[b]YOUR MISSION[/b]\nYou are Major Elena Vance. Colonel Raskov of Vanguard Corp has stolen the [b]Horizon Protocol[/b], a drive that can switch off a country's defences, and he is about to sell it.\n1. Sneak into Timberline Outpost.  2. Steal Raskov's logs from the Kranor admin block to find where the drive is.\n3. Escape.  4. Drive up the pass to Site 9.  5. Kill Raskov and take the drive from the vault.\n"
+
+
+func _build_story() -> void:
+	story_panel = PanelContainer.new()
+	story_panel.add_theme_stylebox_override("panel", panel.get_theme_stylebox("panel"))
+	story_panel.set_anchors_preset(Control.PRESET_CENTER)
+	story_panel.offset_left = -380
+	story_panel.offset_right = 380
+	story_panel.offset_top = -330
+	story_panel.offset_bottom = 330
+	add_child(story_panel)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	story_panel.add_child(vb)
+	var title := Label.new()
+	title.text = "INTEL & STORY"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(0.95, 0.9, 0.7))
+	vb.add_child(title)
+	story_text = RichTextLabel.new()
+	story_text.bbcode_enabled = true
+	story_text.custom_minimum_size = Vector2(700, 520)
+	story_text.scroll_active = true
+	story_text.add_theme_font_size_override("normal_font_size", 15)
+	story_text.add_theme_font_size_override("bold_font_size", 16)
+	vb.add_child(story_text)
+	var back := Button.new()
+	back.text = "Back"
+	back.custom_minimum_size = Vector2(180, 36)
+	back.pressed.connect(_hide_story)
+	vb.add_child(back)
+	story_panel.visible = false
+
+
+func _show_story() -> void:
+	var t := STORY_INTRO
+	t += "\n[b]RIGHT NOW:[/b]  " + String(game.hud._objective.text).replace("OBJECTIVE:  ", "") + "\n"
+	t += "\n[b]WHAT YOU HAVE FOUND[/b]  (intel %d / %d)\n" % [game.intel_found, game.intel_total]
+	if game.story_log.is_empty():
+		t += "Nothing yet. Look for red folders with a blue glow and press F to read them.\n"
+	for e in game.story_log:
+		t += "\n[color=#f2d98c][b]%s[/b][/color]\n%s\n" % [e["title"], e["body"]]
+	story_text.text = t
+	panel.visible = false
+	story_panel.visible = true
+
+
+func _hide_story() -> void:
+	story_panel.visible = false
+	panel.visible = true
 
 
 # ------------------------------------------------------------------ controls screen
@@ -186,6 +247,7 @@ func _show_controls() -> void:
 func _hide_controls() -> void:
 	_rebind_action = ""
 	controls_panel.visible = false
+	story_panel.visible = false
 	panel.visible = true
 
 
@@ -251,7 +313,9 @@ func _button(parent: Node, text: String, cb: Callable) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
-		if open and controls_panel.visible:
+		if open and story_panel.visible:
+			_hide_story()
+		elif open and controls_panel.visible:
 			_hide_controls()
 		elif open:
 			_resume()
@@ -271,6 +335,7 @@ func _resume() -> void:
 	open = false
 	visible = false
 	controls_panel.visible = false
+	story_panel.visible = false
 	panel.visible = true
 	get_tree().paused = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
