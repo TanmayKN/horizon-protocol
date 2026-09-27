@@ -4,6 +4,7 @@ extends CharacterBody3D
 const B := preload("res://scripts/build.gd")
 const M := preload("res://scripts/mats.gd")
 const S := preload("res://scripts/sfx.gd")
+const MD := preload("res://scripts/models.gd")
 
 enum State { PATROL, SUSPICIOUS, SEARCH, COMBAT, DEAD }
 
@@ -68,7 +69,14 @@ func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3, mat: M
 	return B.mesh(parent, cm, pos, mat, rot)
 
 
+var _torso_base := Vector3.ZERO
+
+
 func _build_model() -> void:
+	var model_name := "raskov" if callsign == "Raskov" else "soldier"
+	if MD.available(model_name):
+		_build_blender_model(model_name)
+		return
 	body = Node3D.new()
 	add_child(body)
 	var uni := M.get_mat("uniform")
@@ -158,6 +166,42 @@ func _build_model() -> void:
 		add_child(laser)
 
 
+func _build_blender_model(model_name: String) -> void:
+	body = MD.place(self, model_name, Vector3.ZERO)
+	leg_l = body.find_child("thigh_l", true, false)
+	leg_r = body.find_child("thigh_r", true, false)
+	shin_l = body.find_child("shin_l", true, false)
+	shin_r = body.find_child("shin_r", true, false)
+	torso = body.find_child("torso", true, false)
+	head_node = body.find_child("head", true, false)
+	arm_r = body.find_child("arm_r", true, false)
+	var gun: Node3D = body.find_child("gun", true, false)
+	gun_tip = body.find_child("gun_tip", true, false)
+	if gun_tip == null:
+		gun_tip = Node3D.new()
+		gun.add_child(gun_tip)
+		gun_tip.position = Vector3(0, 0, -0.5)
+	_torso_base = torso.position
+	if is_sniper:
+		B.cyl(gun, 0.022, 0.022, 0.26, Vector3(0, 0.07, 0.0), M.get_mat("gun_metal"), false, Vector3(90, 0, 0), 8)
+		B.cyl(gun, 0.011, 0.011, 0.45, Vector3(0, 0.005, -0.62), M.get_mat("gun_metal"), false, Vector3(90, 0, 0), 8)
+		gun_tip.position += Vector3(0, 0, -0.35)
+	_flash = B.omni(gun_tip, Vector3.ZERO, Color(1, 0.7, 0.35), 0.0, 8.0)
+	if is_sniper:
+		laser = MeshInstance3D.new()
+		var lm := BoxMesh.new()
+		lm.size = Vector3(0.008, 0.008, 1.0)
+		laser.mesh = lm
+		var lmat := M.emissive(Color(1, 0.1, 0.05), 5.0).duplicate()
+		lmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		lmat.albedo_color.a = 0.35
+		lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		laser.material_override = lmat
+		laser.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		laser.visible = false
+		add_child(laser)
+
+
 ## Walk cycle + aiming pose
 func _animate(delta: float) -> void:
 	if leg_l == null or state == State.DEAD:
@@ -170,7 +214,10 @@ func _animate(delta: float) -> void:
 	shin_l.rotation.x = maxf(0.0, -sin(_walk + 0.6)) * clampf(spd / 2.5, 0.0, 1.0) * 0.7
 	shin_r.rotation.x = maxf(0.0, sin(_walk + 0.6)) * clampf(spd / 2.5, 0.0, 1.0) * 0.7
 	var bob := absf(cos(_walk)) * 0.04 * clampf(spd / 2.5, 0.0, 1.0)
-	torso.position.y = 0.95 + bob
+	if _torso_base != Vector3.ZERO:
+		torso.position = _torso_base + Vector3(0, bob * 0.5, 0)
+	else:
+		torso.position.y = 0.95 + bob
 	# Lean into combat, crouch a little when aiming
 	var target_lean := 0.18 if state == State.COMBAT else 0.04
 	torso.rotation.x = lerpf(torso.rotation.x, -target_lean, clampf(delta * 5.0, 0.0, 1.0))

@@ -35,6 +35,28 @@ static func material_for(mat_name: String, tint: Color) -> Material:
 			return M.tinted("metal", tint)
 		"glass":
 			return M.get_mat("glass")
+		"uniform":
+			return M.get_mat("uniform")
+		"coat":
+			return M.tinted("uniform", Color(0.45, 0.47, 0.42))
+		"gear_light":
+			return M.tinted("gear", Color(0.32, 0.3, 0.22))
+		"boot":
+			return M.tinted("gear", Color(0.2, 0.15, 0.1))
+		"balaclava":
+			return M.tinted("gear", Color(0.14, 0.13, 0.12))
+		"helmet":
+			return M.tinted("uniform", Color(0.8, 0.82, 0.72))
+		"glove":
+			return M.tinted("gear", Color(0.12, 0.12, 0.11))
+		"nvg_glow":
+			return M.emissive(Color(0.3, 1.0, 0.4), 2.5)
+		"beret":
+			return M.tinted("gear", Color(0.45, 0.05, 0.05))
+		"skin":
+			return M.tinted("gear", Color(0.72, 0.55, 0.45))
+		"patch":
+			return M.tinted("gear", Color(0.6, 0.12, 0.1))
 		"metal", "rust", "gun_metal", "gun_polymer", "gear", "black", "wood", "concrete", "bark", "log":
 			return M.get_mat(n)
 	return M.get_mat("metal")

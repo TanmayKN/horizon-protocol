@@ -453,7 +453,216 @@ def helicopter():
     export("helicopter")
 
 
-ALL = ["supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree"]
+# ---------------------------------------------------------------- soldiers (posable)
+
+def _between(name, p1, p2, r1, r2, material, verts=12):
+    """Tapered cylinder from p1 to p2 (for limbs)."""
+    a, b = Vector(p1), Vector(p2)
+    d = b - a
+    bpy.ops.mesh.primitive_cone_add(radius1=r1, radius2=r2, depth=d.length, vertices=verts, location=(a + b) / 2)
+    o = bpy.context.active_object
+    o.name = name
+    o.rotation_mode = "QUATERNION"
+    o.rotation_quaternion = d.to_track_quat("Z", "Y")
+    bpy.ops.object.transform_apply(rotation=True)
+    _finish(o, material, 0.0)
+    sub = o.modifiers.new("sub", "SUBSURF")
+    sub.levels = 1
+    return o
+
+
+def _ball(name, loc, scale, material, segs=16):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, segments=segs, ring_count=segs // 2, location=loc)
+    o = bpy.context.active_object
+    o.name = name
+    o.scale = scale
+    bpy.ops.object.transform_apply(scale=True)
+    return _finish(o, material)
+
+
+def _join(name, objs, pivot):
+    """Join objects into one part whose origin (joint) is at `pivot`."""
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in objs:
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        for m in list(o.modifiers):
+            bpy.ops.object.modifier_apply(modifier=m.name)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.join()
+    part = bpy.context.active_object
+    part.name = name
+    bpy.context.scene.cursor.location = pivot
+    bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+    return part
+
+
+def _parent(child, parent):
+    child.parent = parent
+    child.matrix_parent_inverse = parent.matrix_world.inverted()
+
+
+def _empty(name, loc, parent):
+    e = bpy.data.objects.new(name, None)
+    bpy.context.collection.objects.link(e)
+    e.location = loc
+    _parent(e, parent)
+    return e
+
+
+def _soldier(officer=False):
+    reset()
+    U = "coat" if officer else "uniform"
+    parts = {}
+    # --- pelvis
+    objs = [box("hips", (0.34, 0.22, 0.2), (0, 0, 0.94), U, 0.05)]
+    objs.append(box("belt", (0.37, 0.25, 0.06), (0, 0, 1.0), "gear", 0.015))
+    if not officer:
+        for x in (-0.14, 0.14):
+            objs.append(box("hip_pouch", (0.07, 0.1, 0.12), (x, -0.12, 0.95), "gear", 0.015))
+    else:
+        sk = _between("coat_skirt", (0, 0, 1.0), (0, 0, 0.55), 0.2, 0.27, U, verts=16)
+        sk.scale = (1.0, 0.75, 1.0)
+        bpy.context.view_layer.objects.active = sk
+        bpy.ops.object.transform_apply(scale=True)
+        objs.append(sk)
+    pelvis = _join("pelvis", objs, (0, 0, 0.95))
+    # --- legs
+    for side, sx in (("l", -0.1), ("r", 0.1)):
+        th = [_between("thigh", (sx, 0, 0.93), (sx, 0.02, 0.5), 0.09, 0.07, U)]
+        if not officer:
+            th.append(box("cargo", (0.04, 0.12, 0.14), (sx * 1.9, 0.02, 0.7), U, 0.02))
+        thigh = _join("thigh_" + side, th, (sx, 0, 0.92))
+        sh = [_between("shin", (sx, 0.02, 0.5), (sx, 0, 0.12), 0.066, 0.05, U)]
+        sh.append(box("knee_pad", (0.11, 0.05, 0.12), (sx, 0.08, 0.5), "gear", 0.025))
+        sh.append(box("boot", (0.12, 0.28, 0.13), (sx, 0.04, 0.065), "boot", 0.04))
+        sh.append(box("boot_top", (0.11, 0.13, 0.12), (sx, 0, 0.17), "boot", 0.03))
+        shin = _join("shin_" + side, sh, (sx, 0.02, 0.5))
+        _parent(thigh, pelvis)
+        _parent(shin, thigh)
+    # --- torso
+    t = [_between("chest", (0, 0, 0.98), (0, 0, 1.46), 0.16, 0.2, U, verts=16)]
+    t[0].scale = (1.15, 0.75, 1.0)
+    bpy.context.view_layer.objects.active = t[0]
+    bpy.ops.object.transform_apply(scale=True)
+    t.append(_ball("shoulders", (0, 0, 1.42), (0.23, 0.13, 0.08), U))
+    if officer:
+        cf = _between("coat_chest", (0, 0, 0.98), (0, 0, 1.44), 0.2, 0.22, U, verts=16)
+        cf.scale = (1.1, 0.78, 1.0)
+        bpy.context.view_layer.objects.active = cf
+        bpy.ops.object.transform_apply(scale=True)
+        t.append(cf)
+        t.append(box("belt_officer", (0.44, 0.33, 0.05), (0, 0, 1.02), "gear", 0.015))
+        t.append(box("lapel", (0.2, 0.02, 0.2), (0, 0.165, 1.35), "gear", 0.01))
+        for x in (-0.19, 0.19):
+            t.append(box("epaulette", (0.1, 0.12, 0.02), (x, 0, 1.47), "beret", 0.005))
+        for i in range(3):
+            t.append(cyl("button", 0.012, 0.01, (0.05, 0.17, 1.1 + i * 0.09), "metal", rot=(90, 0, 0), verts=8))
+        t.append(box("holster", (0.06, 0.12, 0.16), (0.2, 0, 1.0), "gear", 0.02))
+    else:
+        t.append(box("plate_carrier", (0.4, 0.29, 0.36), (0, 0, 1.22), "gear", 0.03))
+        for i, x in enumerate((-0.12, 0.0, 0.12)):
+            t.append(box("mag_pouch", (0.09, 0.06, 0.14), (x, 0.17, 1.14), "gear_light", 0.015))
+        t.append(box("radio", (0.08, 0.06, 0.16), (-0.2, -0.06, 1.2), "gear", 0.015))
+        t.append(cyl("antenna", 0.006, 0.55, (-0.2, -0.08, 1.55), "gun_metal", verts=6))
+        t.append(box("backpack", (0.3, 0.15, 0.4), (0, -0.2, 1.22), "gear_light", 0.04))
+        t.append(box("pack_top", (0.28, 0.14, 0.08), (0, -0.2, 1.44), "gear", 0.03))
+        t.append(box("strap_l", (0.05, 0.3, 0.03), (-0.12, 0, 1.44), "gear"))
+        t.append(box("strap_r", (0.05, 0.3, 0.03), (0.12, 0, 1.44), "gear"))
+        t.append(box("patch", (0.06, 0.005, 0.05), (0.21, 0.0, 1.34), "patch", rot=(0, 0, 90)))
+    torso = _join("torso", t, (0, 0, 0.98))
+    _parent(torso, pelvis)
+    # --- head
+    h = [_between("neck", (0, 0, 1.46), (0, 0.01, 1.56), 0.055, 0.05, "balaclava")]
+    h.append(_ball("head", (0, 0.015, 1.64), (0.095, 0.11, 0.12), "balaclava"))
+    if officer:
+        h.append(_ball("face", (0, 0.03, 1.63), (0.085, 0.1, 0.105), "skin"))
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, segments=16, ring_count=8, location=(0.02, 0.0, 1.73))
+        beret = bpy.context.active_object
+        beret.scale = (0.12, 0.13, 0.04)
+        bpy.ops.object.transform_apply(scale=True)
+        h.append(_finish(beret, "beret"))
+        h.append(box("brow", (0.12, 0.01, 0.015), (0, 0.105, 1.67), "gear"))
+    else:
+        bpy.ops.mesh.primitive_uv_sphere_add(radius=0.14, segments=18, ring_count=10, location=(0, 0.0, 1.66))
+        helm = bpy.context.active_object
+        helm.name = "helmet"
+        bm = bmesh.new()
+        bm.from_mesh(helm.data)
+        bmesh.ops.delete(bm, geom=[v for v in bm.verts if v.co.z < -0.02], context="VERTS")
+        bm.to_mesh(helm.data)
+        bm.free()
+        helm.scale = (1.0, 1.1, 1.0)
+        bpy.ops.object.transform_apply(scale=True)
+        sol = helm.modifiers.new("solid", "SOLIDIFY")
+        sol.thickness = 0.012
+        h.append(_finish(helm, "helmet"))
+        for x in (-0.13, 0.13):
+            h.append(cyl("ear_pro", 0.045, 0.035, (x, 0.0, 1.62), "gear", rot=(0, 90, 0), verts=12))
+        h.append(box("nvg_mount", (0.05, 0.03, 0.05), (0, 0.15, 1.72), "gun_metal", 0.008))
+        for x in (-0.03, 0.03):
+            h.append(cyl("nvg_tube", 0.018, 0.07, (x, 0.18, 1.69), "gun_metal", rot=(90, 0, 0), verts=10))
+            h.append(cyl("nvg_lens", 0.015, 0.004, (x, 0.216, 1.69), "nvg_glow", rot=(90, 0, 0), verts=10))
+        h.append(box("goggle_band", (0.26, 0.02, 0.025), (0, 0.0, 1.69), "gear"))
+    head = _join("head", h, (0, 0, 1.52))
+    _parent(head, torso)
+    # --- arms in a rifle-ready pose (right arm is a separate joint for hand signals)
+    for side, sh_p, el_p, ha_p in (("r", (0.21, 0, 1.4), (0.24, 0.14, 1.16), (0.07, 0.3, 1.18)),
+                                   ("l", (-0.21, 0, 1.4), (-0.2, 0.22, 1.2), (0.0, 0.5, 1.24))):
+        a = [_between("upper", sh_p, el_p, 0.065, 0.055, U), _between("fore", el_p, ha_p, 0.052, 0.045, U)]
+        a.append(_ball("glove", ha_p, (0.05, 0.06, 0.045), "glove"))
+        if not officer:
+            a.append(box("shoulder_pad", (0.1, 0.1, 0.05), (sh_p[0] * 1.05, 0, sh_p[2] + 0.02), "gear", 0.02))
+        arm = _join("arm_" + side, a, sh_p)
+        _parent(arm, torso)
+    # --- carbine held at the chest, pointing forward (+Y)
+    gm, gp = "gun_metal", "gun_polymer"
+    g = [box("g_recv", (0.05, 0.3, 0.07), (0.05, 0.3, 1.25), gm, 0.006)]
+    g.append(box("g_stock", (0.045, 0.2, 0.07), (0.05, 0.06, 1.23), gp, 0.01))
+    g.append(cyl("g_hand", 0.028, 0.26, (0.05, 0.56, 1.255), gp, rot=(90, 0, 22.5), verts=8))
+    g.append(cyl("g_barrel", 0.011, 0.12, (0.05, 0.75, 1.255), gm, rot=(90, 0, 0), verts=10))
+    g.append(box("g_mag", (0.032, 0.07, 0.15), (0.05, 0.36, 1.14), gp, 0.006, rot=(12, 0, 0)))
+    g.append(box("g_grip", (0.034, 0.045, 0.1), (0.05, 0.22, 1.17), gp, 0.008, rot=(-18, 0, 0)))
+    g.append(cyl("g_optic", 0.018, 0.07, (0.05, 0.32, 1.31), gm, rot=(90, 0, 0), verts=12))
+    gun = _join("gun", g, (0.05, 0.3, 1.25))
+    _parent(gun, torso)
+    _empty("gun_tip", (0.0, 0.52, 0.005), gun)
+    # Everything under a root that stands on the ground
+    root = bpy.data.objects.new("soldier_root", None)
+    bpy.context.collection.objects.link(root)
+    _parent(pelvis, root)
+    return root
+
+
+def _export_rig(name):
+    for o in bpy.context.scene.objects:
+        if o.type != "MESH":
+            continue
+        bpy.context.view_layer.objects.active = o
+        for m in list(o.modifiers):
+            bpy.ops.object.modifier_apply(modifier=m.name)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.uv.cube_project(cube_size=1.0)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.shade_smooth_by_angle(angle=math.radians(40))
+    path = os.path.join(OUT, name + ".glb")
+    bpy.ops.export_scene.gltf(filepath=path, export_format="GLB", export_apply=True, export_materials="EXPORT", export_image_format="NONE")
+    faces = sum(len(o.data.polygons) for o in bpy.context.scene.objects if o.type == "MESH")
+    print(f"exported {name}.glb  ({faces} faces)")
+
+
+def soldier():
+    _soldier(False)
+    _export_rig("soldier")
+
+
+def raskov():
+    _soldier(True)
+    _export_rig("raskov")
+
+
+ALL = ["soldier", "raskov", "supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree"]
 
 if __name__ == "__main__":
     todo = [a for a in sys.argv[1:] if a in ALL] or ALL
