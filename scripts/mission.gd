@@ -95,6 +95,9 @@ func _process(delta: float) -> void:
 	var p = game.player
 	if step == "s4_ride":
 		_do_wheel(delta)
+	if step in ["s3_down", "s3_catwalk", "s3_window"] and not game.seg2.in_admin(p.global_position) and not game.seg2.in_w1(p.global_position) and p.global_position.y < 2.0 and p.is_on_floor():
+		say(OVERWATCH, "Vance! You're outside? Hold on, I'm coming to you!", 0.0, true)
+		_go("s4_escape")
 	match step:
 		"s1_intro":
 			if _near(game.seg1.WIRE_POS, 3.2):
@@ -225,7 +228,7 @@ func _go(new_step: String) -> void:
 				e.alert(game.player.global_position)
 				_wave.append(e)
 			get_tree().create_timer(1.0).timeout.connect(func():
-				if is_instance_valid(_wave[0]):
+				if _wave.size() > 0 and is_instance_valid(_wave[0]):
 					_wave[0].shout("CONTACT! TOP FLOOR!"))
 		"s3_down":
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
@@ -242,6 +245,7 @@ func _go(new_step: String) -> void:
 			say(RASKOV_PA, "Take her alive if you can. If you can't... I'll settle for the drive.", 2.0)
 			_goal("Kill the soldiers coming through the catwalk door", "Aim at the door (marker).  Grab the guns and ammo they drop", game.seg2.CATWALK_DOOR + Vector3(0, 1.5, 0))
 		"s3_window":
+			game.seg2.open_window()
 			game.seg4.visible = true
 			game.seg2.stop_alarm()
 			say(OVERWATCH, "Vance! I've got a supply truck. I'm bringing it under the west window. When I say jump, you JUMP!", 0.2, true)

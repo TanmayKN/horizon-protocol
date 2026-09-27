@@ -199,7 +199,7 @@ def rifle():
     # Hollow it so you can see through
     bm = bmesh.new()
     bm.from_mesh(tube.data)
-    caps = [f for f in bm.faces if abs(f.normal.y) > 0.9]
+    caps = [f for f in bm.faces if abs(f.normal.z) > 0.9]   # end caps (mesh-local Z = tube axis)
     bmesh.ops.delete(bm, geom=caps, context="FACES_ONLY")
     bm.to_mesh(tube.data)
     bm.free()
@@ -592,7 +592,7 @@ def _hollow_tube(name, r, length, loc, material, thick=0.003):
     tube.name = name
     bm = bmesh.new()
     bm.from_mesh(tube.data)
-    caps = [f for f in bm.faces if abs(f.normal.y) > 0.9]
+    caps = [f for f in bm.faces if abs(f.normal.z) > 0.9]   # end caps (mesh-local Z = tube axis)
     bmesh.ops.delete(bm, geom=caps, context="FACES_ONLY")
     bm.to_mesh(tube.data)
     bm.free()

@@ -4,7 +4,7 @@ extends RefCounted
 
 
 static func mesh(parent: Node, m: Mesh, pos: Vector3, material: Material, rot_deg := Vector3.ZERO, shadows := true) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()
+	var mi := MeshInstance3D.new()	
 	mi.mesh = m
 	mi.material_override = material
 	mi.position = pos

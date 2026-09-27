@@ -51,6 +51,11 @@ Find the **6 hidden intel documents** and listen in on the guards' conversations
 
 You can change any key in **Esc → Controls**: click a key and press the new one.
 
+## Download and play (no Godot needed)
+
+- **Mac:** [TheHorizonProtocol.dmg](https://github.com/TanmayKN/horizon-protocol/raw/main/downloads/TheHorizonProtocol.dmg). Open it, drag the game into Applications, then right-click the game and choose **Open** the first time.
+- **Windows:** [TheHorizonProtocol-Windows.zip](https://github.com/TanmayKN/horizon-protocol/raw/main/downloads/TheHorizonProtocol-Windows.zip). Unzip it and run `TheHorizonProtocol.exe`. If SmartScreen warns you, click **More info** then **Run anyway**.
+
 ## How to play it
 
 1. Install **Godot 4.7** (free) from [godotengine.org](https://godotengine.org/download).

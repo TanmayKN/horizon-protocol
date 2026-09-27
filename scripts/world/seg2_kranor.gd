@@ -83,6 +83,10 @@ func in_admin(pos: Vector3) -> bool:
 	return pos.x > ADMIN_MIN.x and pos.x < ADMIN_MAX.x and pos.z > ADMIN_MIN.z and pos.z < ADMIN_MAX.z
 
 
+func in_w1(pos: Vector3) -> bool:
+	return pos.x > W1_MIN.x and pos.x < W1_MAX.x and pos.z > W1_MIN.z and pos.z < W1_MAX.z
+
+
 func floor_of(pos: Vector3) -> int:
 	return int(floor((pos.y + 0.5) / FLOOR_H))
 
@@ -237,6 +241,7 @@ func _build_warehouse() -> void:
 	_catwalk(Vector3(40.2, 3.6, 76.0), Vector3(41.8, 3.6, 100.0))    # from admin 2nd floor door
 	_catwalk(Vector3(38.0, 3.6, 76.0), Vector3(74.0, 3.6, 77.6))     # cross walk
 	_catwalk(Vector3(66.0, 3.6, 70.0), Vector3(67.6, 3.6, 98.0))
+	_catwalk_rail_colliders()
 	B.stairs(self, Vector3(66.8, 0, 60.5), Vector3(66.8, 3.6, 70.0), 1.5, M.get_mat("metal"))
 	B.label3d(self, "W1", Vector3(56, 8, 55.8), 200, Color(0.95, 0.85, 0.2), Vector3(0, 180, 0))
 
@@ -300,6 +305,39 @@ func _catwalk(a: Vector3, b: Vector3) -> void:
 		var t := float(i) / maxf(1, n)
 		var p := a.lerp(b, t)
 		B.box(self, Vector3(0.12, 3.6, 0.12), Vector3(p.x, 1.8, p.z), grate, false)
+
+
+## Invisible walls along the catwalk railings so nobody (you or the soldiers) falls off,
+## with gaps where catwalks cross each other.
+func _catwalk_rail_colliders() -> void:
+	for r in _catwalk_rects:
+		var along_x: bool = (r[1] - r[0]) > (r[3] - r[2])
+		for side in [0, 1]:
+			var lo: float = r[0] if along_x else r[2]
+			var hi: float = r[1] if along_x else r[3]
+			var fixed: float = (r[2] if side == 0 else r[3]) if along_x else (r[0] if side == 0 else r[1])
+			# gaps where another catwalk meets this side
+			var gaps: Array = []
+			for o in _catwalk_rects:
+				if o == r:
+					continue
+				var o_lo: float = o[0] if along_x else o[2]
+				var o_hi: float = o[1] if along_x else o[3]
+				var o_c_lo: float = o[2] if along_x else o[0]
+				var o_c_hi: float = o[3] if along_x else o[1]
+				if fixed >= o_c_lo - 0.3 and fixed <= o_c_hi + 0.3 and o_hi > lo and o_lo < hi:
+					gaps.append([o_lo - 0.1, o_hi + 0.1])
+			gaps.sort_custom(func(g1, g2): return g1[0] < g2[0])
+			var cur := lo
+			for g in gaps + [[hi, hi]]:
+				var seg_end: float = minf(g[0], hi)
+				if seg_end - cur > 0.3:
+					var mid := (cur + seg_end) * 0.5
+					var length := seg_end - cur
+					var pos := Vector3(mid, 4.15, fixed) if along_x else Vector3(fixed, 4.15, mid)
+					var size := Vector3(length, 1.1, 0.1) if along_x else Vector3(0.1, 1.1, length)
+					B.wall(self, size, pos)
+				cur = maxf(cur, g[1])
 
 
 # ------------------------------------------------------------------ admin block
@@ -618,8 +656,7 @@ func start_blackout() -> void:
 	# The transformer blast blows the window in
 	if window_glass:
 		window_glass.queue_free()
-	if window_blocker:
-		window_blocker.queue_free()
+	# (the invisible blocker stays until Reyes' truck arrives: see open_window())
 	_explosion_fx(Vector3(28, 2, 118))
 	_explosion_fx(WINDOW_POS + Vector3(-1, 1, 0))
 	# Smoke rolling through the halls
@@ -635,6 +672,13 @@ func start_blackout() -> void:
 	B.box(self, Vector3(1.7, 1.6, 1.4), Vector3(46.25, FLOOR_H - 0.4, 113.0), rubble)   # collapsed flight: blocks the way down
 	B.box(self, Vector3(0.2, 2.4, 2.0), Vector3(36, 1.2, 105), M.tinted("metal", Color(0.4, 0.1, 0.08)))   # locked door
 	B.box(self, Vector3(2.0, 2.4, 0.2), Vector3(45, 1.2, 100), M.tinted("metal", Color(0.4, 0.1, 0.08)))   # locked door
+
+
+## Reyes is under the window: now you can jump
+func open_window() -> void:
+	if window_blocker and is_instance_valid(window_blocker):
+		window_blocker.queue_free()
+		window_blocker = null
 
 
 func _explosion_fx(pos: Vector3) -> void:
