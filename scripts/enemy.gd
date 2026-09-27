@@ -209,12 +209,14 @@ func _animate(delta: float) -> void:
 	if leg_l == null or state == State.DEAD:
 		return
 	var spd := Vector2(velocity.x, velocity.z).length()
-	_walk += delta * spd * 3.2
-	var swing := sin(_walk) * clampf(spd / 2.5, 0.0, 1.0) * 0.55
+	_walk += delta * spd * 3.6
+	var amt := clampf(spd / 1.8, 0.0, 1.0)
+	var swing := sin(_walk) * amt * 0.75
 	leg_l.rotation.x = swing
 	leg_r.rotation.x = -swing
-	shin_l.rotation.x = maxf(0.0, -sin(_walk + 0.6)) * clampf(spd / 2.5, 0.0, 1.0) * 0.7
-	shin_r.rotation.x = maxf(0.0, sin(_walk + 0.6)) * clampf(spd / 2.5, 0.0, 1.0) * 0.7
+	# knees bend on the back-swing (negative = heel comes up behind)
+	shin_l.rotation.x = -maxf(0.0, -sin(_walk + 0.6)) * amt * 1.1
+	shin_r.rotation.x = -maxf(0.0, sin(_walk + 0.6)) * amt * 1.1
 	var bob := absf(cos(_walk)) * 0.04 * clampf(spd / 2.5, 0.0, 1.0)
 	if _torso_base != Vector3.ZERO:
 		torso.position = _torso_base + Vector3(0, bob * 0.5, 0)

@@ -612,6 +612,12 @@ func setup_inputs() -> void:
 			ev.physical_keycode = k
 			InputMap.action_add_event(action, ev)
 	var mouse := {"fire": MOUSE_BUTTON_LEFT, "aim": MOUSE_BUTTON_RIGHT}
+	# Trackpad-friendly: X also aims (hold)
+	if not InputMap.has_action("aim"):
+		InputMap.add_action("aim")
+	var xk := InputEventKey.new()
+	xk.physical_keycode = KEY_X
+	InputMap.action_add_event("aim", xk)
 	for action in mouse:
 		if not InputMap.has_action(action):
 			InputMap.add_action(action)

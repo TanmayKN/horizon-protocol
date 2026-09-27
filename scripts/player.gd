@@ -155,7 +155,7 @@ func _update_body(delta: float, horizontal: float) -> void:
 	# Simple procedural animation: walk cycle, crouch and prone poses, rifle held up
 	body_model.rotation.y = 0.0
 	_walk_phase += delta * horizontal * 2.2
-	var swing := sin(_walk_phase) * clampf(horizontal / 3.0, 0.0, 1.0) * 0.6
+	var swing := sin(_walk_phase) * clampf(horizontal / 3.0, 0.0, 1.0) * 0.8
 	var crouch := 0.0
 	match stance:
 		Stance.CROUCH:
@@ -173,6 +173,9 @@ func _update_body(delta: float, horizontal: float) -> void:
 		_b_thigh_r.rotation.x = -swing + crouch * 0.4 * (1.0 if crouch < 2.0 else 0.0)
 		_b_shin_l.rotation.x = -maxf(0.0, -sin(_walk_phase)) * 0.8 - crouch * 1.1 * (1.0 if crouch < 2.0 else 0.0)
 		_b_shin_r.rotation.x = -maxf(0.0, sin(_walk_phase)) * 0.8 - crouch * 1.4 * (1.0 if crouch < 2.0 else 0.0)
+	if _b_arm_l and crouch < 2.0:
+		_b_arm_l.rotation.x = 0.9 - swing * 0.2
+		_b_arm_r.rotation.x = 0.9 + swing * 0.2
 	if _b_torso:
 		_b_torso.rotation.x = -head.rotation.x * 0.5 + (0.25 if sprinting else 0.0)
 		_b_torso.rotation.z = -_lean * 0.3
@@ -193,7 +196,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if is_dead:
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		var sens: float = MOUSE_SENS * (0.55 if aiming else 1.0) * (game.mouse_sens_mult if game else 1.0)
+		var sens: float = MOUSE_SENS * ((camera.fov / 75.0) if aiming else 1.0) * (game.mouse_sens_mult if game else 1.0)   # slower when zoomed in
 		rotate_y(-event.relative.x * sens)
 		head.rotate_x(-event.relative.y * sens)
 		head.rotation.x = clampf(head.rotation.x, deg_to_rad(-86), deg_to_rad(86))

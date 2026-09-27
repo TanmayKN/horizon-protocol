@@ -241,6 +241,33 @@ func _build_warehouse() -> void:
 	B.label3d(self, "W1", Vector3(56, 8, 55.8), 200, Color(0.95, 0.85, 0.2), Vector3(0, 180, 0))
 
 
+## Steel stringers, a smooth soffit underneath and a handrail for one stair flight.
+## outer: +1 = rail on the +x side, -1 = rail on the -x side
+func _flight_trim(bottom: Vector3, top: Vector3, width: float, outer: int) -> void:
+	var steel := M.tinted("metal", Color(0.28, 0.3, 0.33))
+	var rail_mat := M.tinted("metal", Color(0.75, 0.62, 0.1))      # yellow safety rail
+	var d := top - bottom
+	var run := Vector2(d.x, d.z).length()
+	var slope := sqrt(run * run + d.y * d.y)
+	var pitch := rad_to_deg(atan2(d.y, run))
+	var yaw := rad_to_deg(atan2(d.x, d.z))
+	var mid := (bottom + top) * 0.5
+	var fwd := Vector3(sin(deg_to_rad(yaw)), 0, cos(deg_to_rad(yaw)))
+	var side := Vector3(fwd.z, 0, -fwd.x)
+	for sgn in [-1.0, 1.0]:
+		# stringer: slanted steel channel along each side of the treads
+		var sp: Vector3 = mid + side * sgn * (width * 0.5 + 0.04) + Vector3(0, -0.12, 0)
+		B.box(self, Vector3(0.08, 0.34, slope + 0.2), sp, steel, false, Vector3(-pitch, yaw, 0))
+	# soffit plate hides the stepped underside
+	B.box(self, Vector3(width, 0.05, slope), mid + Vector3(0, -0.36, 0), steel, false, Vector3(-pitch, yaw, 0))
+	# handrail on the open side + posts
+	var rail_side: Vector3 = side * float(outer) * (width * 0.5 + 0.04)
+	B.box(self, Vector3(0.05, 0.05, slope + 0.1), mid + rail_side + Vector3(0, 0.95, 0), rail_mat, false, Vector3(-pitch, yaw, 0))
+	for t in [0.1, 0.5, 0.9]:
+		var pp: Vector3 = bottom.lerp(top, t) + rail_side + Vector3(0, 0.5, 0)
+		B.box(self, Vector3(0.05, 0.95, 0.05), pp, rail_mat, false)
+
+
 func _rack(base: Vector3, frame: Material, crate: Material) -> void:
 	# Every post, shelf and crate has its own collider, so you can duck/crawl through the empty bays
 	for px in [-0.5, 0.5]:
@@ -339,11 +366,15 @@ func _build_admin() -> void:
 	for f in 2:
 		var y0: float = f * FLOOR_H
 		var half: float = FLOOR_H * 0.5
+		_flight_trim(Vector3(48.1, y0, 114.8), Vector3(48.1, y0 + half, 109.2), 1.7, 1)
+		_flight_trim(Vector3(46.25, y0 + half, 109.2), Vector3(46.25, y0 + FLOOR_H, 114.8), 1.7, -1)
 		B.stairs(self, Vector3(48.1, y0, 114.8), Vector3(48.1, y0 + half, 109.2), 1.7, inner, false)
 		B.box(self, Vector3(3.6, 0.25, 3.2), Vector3(47.2, y0 + half - 0.125, 107.6), inner)          # half landing
 		B.stairs(self, Vector3(46.25, y0 + half, 109.2), Vector3(46.25, y0 + FLOOR_H, 114.8), 1.7, inner, false)
 		B.box(self, Vector3(3.6, 0.25, 1.3), Vector3(47.2, y0 + FLOOR_H - 0.125, 115.35), inner)       # top landing
-		B.box(self, Vector3(0.05, 0.9, 5.6), Vector3(47.18, y0 + half + 0.9, 112.0), M.get_mat("metal"), false)   # centre handrail
+		B.box(self, Vector3(3.6, 0.02, 0.08), Vector3(47.2, y0 + half + 0.005, 109.2), M.get_mat("hazard"), false)   # landing edge
+		B.box(self, Vector3(0.05, 0.9, 3.2), Vector3(49.0, y0 + half + 0.45, 107.6), M.tinted("metal", Color(0.75, 0.62, 0.1)), false)
+		B.omni(self, Vector3(47.2, y0 + half + 2.2, 107.8), Color(1.0, 0.95, 0.85), 0.8, 6.0)
 	# Invisible blocker in the big window (removed when it blows out)
 	window_blocker = B.wall(self, Vector3(0.4, 1.8, 3.0), Vector3(a.x, FLOOR_H + 1.75, a.z + 11.5))
 
@@ -453,10 +484,6 @@ func _build_loading_bay() -> void:
 	B.box(self, Vector3(1.0, 0.02, 44), Vector3(35.4, 0.01, 78), M.get_mat("hazard"), false)
 	for tz in [67.0, 83.0, 94.0]:
 		_truck(Vector3(28.5, 0, tz), 0.0)
-	# Dock bumpers + lights
-	for dz in [67.0, 83.0]:
-		B.box(self, Vector3(0.3, 0.5, 0.4), Vector3(36.2, 1.2, dz - 1.4), M.get_mat("black"))
-		B.box(self, Vector3(0.3, 0.5, 0.4), Vector3(36.2, 1.2, dz + 1.4), M.get_mat("black"))
 	B.label3d(self, "LOADING BAY  1 - 3", Vector3(35.8, 6.0, 78), 64, Color(0.95, 0.85, 0.2), Vector3(0, -90, 0))
 
 
