@@ -356,11 +356,11 @@ func _build_environment() -> void:
 	env.tonemap_exposure = 1.05
 	env.fog_enabled = true
 	env.fog_light_color = Color(0.42, 0.45, 0.48)
-	env.fog_density = 0.018
+	env.fog_density = 0.011
 	env.fog_sky_affect = 0.9
 	env.fog_aerial_perspective = 0.3
 	env.volumetric_fog_enabled = true
-	env.volumetric_fog_density = 0.012
+	env.volumetric_fog_density = 0.005
 	env.volumetric_fog_albedo = Color(0.8, 0.82, 0.85)
 	env.volumetric_fog_length = 90.0
 	env.volumetric_fog_sky_affect = 0.0
@@ -427,10 +427,10 @@ func set_atmosphere(mode: String) -> void:
 	var tw := create_tween().set_parallel(true)
 	match mode:
 		"forest":
-			tw.tween_property(env, "fog_density", 0.018, 3.0)
+			tw.tween_property(env, "fog_density", 0.011, 3.0)
 			tw.tween_property(env, "ambient_light_energy", 0.75, 3.0)
 		"yard":
-			tw.tween_property(env, "fog_density", 0.012, 4.0)
+			tw.tween_property(env, "fog_density", 0.009, 4.0)
 			tw.tween_property(env, "ambient_light_energy", 0.6, 4.0)
 		"blackout":
 			tw.tween_property(env, "ambient_light_energy", 0.08, 0.3)

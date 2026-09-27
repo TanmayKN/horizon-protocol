@@ -19,7 +19,7 @@ uniform sampler2D rock_a : source_color, filter_linear_mipmap_anisotropic, repea
 uniform sampler2D rock_n : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D rock_r : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform float scale = 2.5;
-uniform float wetness : hint_range(0.0, 1.0) = 0.6;
+uniform float wetness : hint_range(0.0, 1.0) = 0.5;
 
 void fragment() {
 	vec2 uv = UV * scale;
@@ -52,7 +52,7 @@ void fragment() {
 	a *= mix(0.82, 1.12, macro * 1.6);
 
 	float wet = wetness * (0.6 + 0.4 * w.r);
-	ALBEDO = a * (1.0 - wet * 0.3);
+	ALBEDO = a * (1.0 - wet * 0.15);
 	ROUGHNESS = clamp(r * (1.0 - wet * 0.45), 0.05, 1.0);
 	NORMAL_MAP = n;
 	NORMAL_MAP_DEPTH = 1.2;
