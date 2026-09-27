@@ -5,6 +5,45 @@ extends RefCounted
 static var _cache := {}
 
 
+## Load a generated texture from res://assets/textures (albedo jpg/png, normal png, rough png)
+static func tex(name: String) -> Texture2D:
+	var key := "tex_" + name
+	if _cache.has(key):
+		return _cache[key]
+	var t: Texture2D = null
+	for ext in [".jpg", ".png"]:
+		var path: String = "res://assets/textures/" + name + ext
+		if ResourceLoader.exists(path):
+			t = load(path)
+			break
+	_cache[key] = t
+	return t
+
+
+## PBR material from a generated texture set, or null if the textures aren't there
+static func pbr(set_name: String, tint := Color.WHITE, uv_scale := Vector3.ONE, triplanar := false, normal_strength := 1.0) -> StandardMaterial3D:
+	var a := tex(set_name + "_albedo")
+	if a == null:
+		return null
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = a
+	m.albedo_color = tint
+	var n := tex(set_name + "_normal")
+	if n:
+		m.normal_enabled = true
+		m.normal_texture = n
+		m.normal_scale = normal_strength
+	var r := tex(set_name + "_rough")
+	if r:
+		m.roughness_texture = r
+		m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+		m.roughness = 1.0
+	m.uv1_scale = uv_scale
+	m.uv1_triplanar = triplanar
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return m
+
+
 static func get_mat(name: String) -> StandardMaterial3D:
 	if _cache.has(name):
 		return _cache[name]
@@ -139,6 +178,58 @@ static func hazard_tex() -> ImageTexture:
 
 # ------------------------------------------------------------------ materials
 
+static func _make_hi(name: String) -> StandardMaterial3D:
+	match name:
+		"bark":
+			return pbr("bark", Color.WHITE, Vector3(2, 3, 1), false, 1.4)
+		"log":
+			return pbr("log", Color.WHITE, Vector3(2, 1, 1), false, 1.0)
+		"wood":
+			return pbr("planks", Color.WHITE, Vector3(0.35, 0.35, 0.35), true)
+		"metal":
+			var m := pbr("painted_metal", Color(0.55, 0.57, 0.6), Vector3(0.5, 0.5, 0.5), true)
+			if m:
+				m.metallic = 0.6
+			return m
+		"rust":
+			var m := pbr("painted_metal", Color(0.62, 0.42, 0.3), Vector3(0.5, 0.5, 0.5), true)
+			if m:
+				m.metallic = 0.35
+			return m
+		"corrugated":
+			var m := pbr("painted_metal", Color(0.72, 0.74, 0.75), Vector3(0.3, 0.3, 0.3), true)
+			if m:
+				m.normal_texture = corrugated_normal()
+				m.metallic = 0.5
+			return m
+		"concrete":
+			return pbr("concrete", Color.WHITE, Vector3(0.2, 0.2, 0.2), true, 1.0)
+		"asphalt":
+			return pbr("asphalt", Color.WHITE, Vector3(0.25, 0.25, 0.25), true, 1.0)
+		"rock":
+			return pbr("rock", Color.WHITE, Vector3(0.3, 0.3, 0.3), true, 1.2)
+		"uniform":
+			return pbr("camo", Color.WHITE, Vector3(3, 3, 3), true, 0.6)
+		"gravel":
+			return pbr("gravel", Color.WHITE, Vector3(0.4, 0.4, 0.4), true)
+		"pine_card":
+			var a := tex("pine_card_albedo")
+			if a == null:
+				return null
+			var m := StandardMaterial3D.new()
+			m.albedo_texture = a
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+			m.alpha_scissor_threshold = 0.4
+			m.alpha_antialiasing_mode = BaseMaterial3D.ALPHA_ANTIALIASING_ALPHA_TO_COVERAGE
+			m.cull_mode = BaseMaterial3D.CULL_DISABLED
+			m.roughness = 0.85
+			m.backlight_enabled = true
+			m.backlight = Color(0.12, 0.18, 0.1)
+			m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+			return m
+	return null
+
+
 static func _base(color: Color, rough: float, metal := 0.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = color
@@ -148,6 +239,10 @@ static func _base(color: Color, rough: float, metal := 0.0) -> StandardMaterial3
 
 
 static func _make(name: String) -> StandardMaterial3D:
+	# Prefer the photo-style generated textures when they exist
+	var hi := _make_hi(name)
+	if hi:
+		return hi
 	match name:
 		"ground":
 			# Detail texture multiplied by per-vertex colour (forest / mud / gravel)
@@ -239,9 +334,9 @@ static func _make(name: String) -> StandardMaterial3D:
 			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 			m.alpha_scissor_threshold = 0.35
 			m.alpha_antialiasing_mode = BaseMaterial3D.ALPHA_ANTIALIASING_ALPHA_TO_COVERAGE
-			m.emission_enabled = true
-			m.emission_texture = m.albedo_texture
-			m.emission = Color(0.05, 0.055, 0.04)
+			m.albedo_color = Color(0.72, 0.76, 0.66)
+			m.backlight_enabled = true
+			m.backlight = Color(0.15, 0.18, 0.1)
 			m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 			m.cull_mode = BaseMaterial3D.CULL_DISABLED
 			return m

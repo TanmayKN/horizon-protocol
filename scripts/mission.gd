@@ -6,6 +6,11 @@ const S := preload("res://scripts/sfx.gd")
 
 const OVERWATCH := "Overwatch (Sgt. Reyes)"
 const VANCE := "Vance"
+const RASKOV_PA := "Raskov (PA)"
+const NIGHTINGALE := "Nightingale 2-1"
+
+var auto_start := true
+var _heli_t := -1.0
 
 var game
 var step := ""
@@ -27,7 +32,13 @@ var _raskov
 
 
 func _ready() -> void:
-	_go("s1_intro")
+	if auto_start:
+		begin()
+
+
+func begin() -> void:
+	if step == "":
+		_go("s1_intro")
 
 
 func _process(delta: float) -> void:
@@ -80,6 +91,9 @@ func _process(delta: float) -> void:
 				_go("s5_vault")
 		"s5_vault":
 			_do_vault(delta)
+		"e_return":
+			if _near3(game.seg4.truck.global_position, 7.0):
+				_go("e_extract")
 		"s5_drive":
 			if _near3(game.seg5.DRIVE_POS, 2.2):
 				game.hud.prompt("Press  F  to take the Horizon Protocol drive")
@@ -150,6 +164,7 @@ func _go(new_step: String) -> void:
 			say(VANCE, "Download complete. Overwatch, I have the logs-", 0.2, true)
 			say(OVERWATCH, "Vance, the grid just went- that wasn't us. Vanguard QRF is on the stairs!", 0.3, false, true)
 			hud.hint("COMMS JAMMED", 4.0)
+			say(RASKOV_PA, "Major Vance. Did you really think I would leave my logs unguarded?", 3.0)
 			hud.set_objective("Survive the counter-attack")
 			_wave = []
 			var top: Vector3 = game.seg2.RAMP_B_TOP
@@ -171,6 +186,7 @@ func _go(new_step: String) -> void:
 			_wave = []
 			_wave_spawned = 0
 			say(OVERWATCH, "Movement on the warehouse catwalk! They're coming through the south door!", 0.3, true)
+			say(RASKOV_PA, "Take her alive if you can. If you can't... I'll settle for the drive.", 2.0)
 			hud.set_objective("Hold off the Vanguard squad at the catwalk door", game.seg2.CATWALK_DOOR + Vector3(0, 1.5, 0))
 		"s3_window":
 			game.seg4.visible = true
@@ -201,6 +217,7 @@ func _go(new_step: String) -> void:
 			hud.title("SEGMENT 5", "The Subterranean Stronghold     |     Vanguard Command Bunker")
 			say(OVERWATCH, "Argh... my leg's pinned under the dash. I'll hold the entrance.", 1.5, true)
 			say(OVERWATCH, "Go, Vance. Raskov is in there. Finish it.")
+			say(RASKOV_PA, "Welcome to Site 9, Major. You've come a long way to die underground.", 1.5)
 			hud.set_objective("Push into the bunker", Vector3(10, 20.5, 648))
 			_spawn_segment5()
 		"s5_server":
@@ -219,19 +236,40 @@ func _go(new_step: String) -> void:
 		"s5_vault":
 			game.seg5.set_ambience(true)
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
-			say(OVERWATCH, "Raskov's down? ...Good. The Protocol is in the vault behind the command center. Get it.", 1.0, true)
+			say(VANCE, "Raskov is down.", 1.0, true)
+			say(OVERWATCH, "...Good. The Protocol is in the vault behind the command center. Get it.", 0.3)
 			hud.set_objective("Open the vault", game.seg5.VAULT_POS + Vector3(0, 1.7, -0.5))
 		"s5_drive":
 			hud.prompt("")
 			hud.set_objective("Secure the Horizon Protocol", game.seg5.DRIVE_POS + Vector3(0, 0.4, 0))
 		"end":
 			hud.prompt("")
-			hud.set_objective("")
 			game.drive_secured()
+			game.seg5.drive.visible = false
+			hud.hint("HORIZON PROTOCOL SECURED", 3.0)
+			say(VANCE, "Overwatch, I have the Horizon Protocol. Coming back to you.", 0.5, true)
+			say(OVERWATCH, "Copy. I've called in Nightingale. Get back to the entrance, Major.")
+			hud.set_objective("Get back to Reyes at the bunker entrance", game.seg4.truck.global_position + Vector3(0, 2.5, 0))
+			_go_quiet("e_return")
+		"e_extract":
+			hud.set_objective("")
+			hud.prompt("")
+			game.seg5.spawn_helicopter()
+			say(OVERWATCH, "Took you long enough, Major.", 0.3, true)
+			say(NIGHTINGALE, "Nightingale 2-1 on station. Two souls, one wounded. Let's get you home.", 2.5)
+			say(VANCE, "Best thing I've heard all night.")
+			game.finish_game()
+
+
+func _go_quiet(new_step: String) -> void:
+	step = new_step
+	_step_t = 0.0
 
 
 func skip() -> void:
 	match step:
+		"e_return":
+			game.player.global_position = game.seg4.truck.global_position + Vector3(3, 0.5, 0)
 		"s1_intro":
 			game.player.global_position = game.seg1.WIRE_POS + Vector3(0, game.terrain.height_at(0, -32) + 0.3, -2.0)
 		"s1_cut":
@@ -276,6 +314,9 @@ func skip() -> void:
 		"s5_vault":
 			_vault_progress = 99.0
 			game.player.global_position = game.seg5.VAULT_POS + Vector3(0, 0.3, -2.0)
+		"e_return":
+			if _near3(game.seg4.truck.global_position, 7.0):
+				_go("e_extract")
 		"s5_drive":
 			if _near3(game.seg5.DRIVE_POS, 2.2):
 				_go("end")
@@ -422,6 +463,7 @@ func on_seg4_event(name: String) -> void:
 			say(OVERWATCH, "Bridge coming up. It's older than both of us. Hang on!", 0.0, true)
 		"techs2":
 			say(OVERWATCH, "Two more coming up fast behind us!", 0.0, true)
+			say("Raskov (intercept)", "All units: stop that truck. I don't care what it costs.", 1.0)
 		"tunnel":
 			say(OVERWATCH, "Tunnel's collapsed! Taking the old service road around it!", 0.0, true)
 		"roadblock_warn":

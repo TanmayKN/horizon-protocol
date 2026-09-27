@@ -45,6 +45,10 @@ var _amb_wind: AudioStreamPlayer
 
 func _ready() -> void:
 	_setup_inputs()
+	var vp := get_viewport()
+	vp.msaa_3d = Viewport.MSAA_2X
+	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+	vp.use_debanding = true
 	_build_environment()
 
 	terrain = Node3D.new()
@@ -106,6 +110,7 @@ func _ready() -> void:
 	mission = Node.new()
 	mission.set_script(MissionScript)
 	mission.game = self
+	mission.auto_start = false
 	add_child(mission)
 
 	var pause := CanvasLayer.new()
@@ -113,7 +118,26 @@ func _ready() -> void:
 	pause.game = self
 	add_child(pause)
 
+	_intro()
+
+
+const BRIEFING := [
+	"THE HORIZON PROTOCOL",
+	"KRANOR VALLEY  -  EASTERN BORDER  -  04:52",
+	"Vanguard Corp, a private army commanded by General Viktor Raskov, has stolen THE HORIZON PROTOCOL: a military override that can seize control of every allied defence network.",
+	"The encrypted launch logs have been traced to a logistics hub hidden in the valley below Timberline Outpost.",
+	"Major Elena Vance goes in alone. Her spotter, Sgt. Marcus Reyes, watches from the ridge.",
+	"No backup. No extraction until the logs are secured.",
+]
+
+
+func _intro() -> void:
+	player.controls_enabled = false
+	if OS.get_cmdline_user_args().size() == 0:
+		await hud.briefing(BRIEFING)
+	player.controls_enabled = true
 	hud.fade_to(0.0, 3.0)
+	mission.begin()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -263,17 +287,21 @@ func _process(delta: float) -> void:
 
 
 func drive_secured() -> void:
-	player.controls_enabled = false
 	S.play2d(self, "beep", 0.0)
-	mission.say("Vance", "Overwatch, I have the Horizon Protocol. Raskov is finished.", 0.0, true)
-	mission.say("Overwatch (Sgt. Reyes)", "Copy that, Major. ...Extraction is inbound. Let's go home.")
-	await get_tree().create_timer(6.0).timeout
+
+
+## Final scene: the helicopter has landed; fade out to the epilogue and credits
+func finish_game() -> void:
+	player.controls_enabled = false
+	await get_tree().create_timer(5.0).timeout
 	hud.fade_to(1.0, 2.5)
-	await get_tree().create_timer(2.6).timeout
-	var mins := int(play_time) / 60
+	await get_tree().create_timer(2.8).timeout
+	var mins := int(play_time / 60.0)
 	var secs := int(play_time) % 60
-	var acc := 0.0
-	hud.end_card("MISSION COMPLETE", "THE HORIZON PROTOCOL\n\nTime  %d:%02d      Kills  %d      Headshots  %d      Shots fired  %d\n\nThanks for playing!\nA game by Tanmay" % [mins, secs, kills, headshots, shots_fired])
+	var acc := 0
+	if shots_fired > 0:
+		acc = int(100.0 * float(kills * 3) / float(shots_fired))
+	hud.end_card("MISSION COMPLETE", "THE HORIZON PROTOCOL\n\nThe Horizon Protocol was recovered at 06:31.\nWithout Raskov, the Vanguard Corp network collapsed within the week.\nMajor Elena Vance and Sgt. Marcus Reyes were extracted from Site 9 by Nightingale 2-1.\n\nTime  %d:%02d      Kills  %d      Headshots  %d      Shots fired  %d\n\n- - -\n\nA game by Tanmay\nBuilt in Godot with Claude\n\nThanks for playing." % [mins, secs, kills, headshots, shots_fired])
 
 
 ## Short slow-motion moment (used for the final breach)
@@ -336,6 +364,9 @@ func _build_environment() -> void:
 	env.volumetric_fog_albedo = Color(0.8, 0.82, 0.85)
 	env.volumetric_fog_length = 90.0
 	env.volumetric_fog_sky_affect = 0.0
+	env.ssr_enabled = true            # wet reflections on puddles, asphalt and metal
+	env.ssr_max_steps = 48
+	env.ssil_enabled = true
 	env.ssao_enabled = true
 	env.ssao_intensity = 1.6
 	env.glow_enabled = true

@@ -50,53 +50,96 @@ func _ready() -> void:
 		health = 80.0
 
 
+var leg_l: Node3D
+var leg_r: Node3D
+var shin_l: Node3D
+var shin_r: Node3D
+var torso: Node3D
+var head_node: Node3D
+var _walk := 0.0
+
+
+func _capsule(parent: Node3D, radius: float, height: float, pos: Vector3, mat: Material, rot := Vector3.ZERO) -> MeshInstance3D:
+	var cm := CapsuleMesh.new()
+	cm.radius = radius
+	cm.height = height
+	cm.radial_segments = 10
+	cm.rings = 4
+	return B.mesh(parent, cm, pos, mat, rot)
+
+
 func _build_model() -> void:
 	body = Node3D.new()
 	add_child(body)
 	var uni := M.get_mat("uniform")
 	var gear := M.get_mat("gear")
 	var metal := M.get_mat("gun_metal")
-	B.box(body, Vector3(0.16, 0.85, 0.2), Vector3(-0.12, 0.43, 0), uni, false)   # legs
-	B.box(body, Vector3(0.16, 0.85, 0.2), Vector3(0.12, 0.43, 0), uni, false)
-	B.box(body, Vector3(0.5, 0.62, 0.28), Vector3(0, 1.17, 0), uni, false)       # torso
-	B.box(body, Vector3(0.54, 0.44, 0.34), Vector3(0, 1.22, 0), gear, false)     # plate carrier
-	B.box(body, Vector3(0.3, 0.12, 0.08), Vector3(0, 1.1, -0.2), gear, false)    # pouches
-	var head := MeshInstance3D.new()
-	var hs := SphereMesh.new()
-	hs.radius = 0.13
-	hs.height = 0.28
-	head.mesh = hs
-	head.material_override = M.tinted("uniform", Color(0.35, 0.33, 0.3))   # balaclava
-	head.position = Vector3(0, 1.65, 0)
-	body.add_child(head)
-	var helm := MeshInstance3D.new()
-	var hm := SphereMesh.new()
-	hm.radius = 0.155
-	hm.height = 0.2
-	hm.is_hemisphere = true
-	helm.mesh = hm
-	helm.material_override = gear
-	helm.position = Vector3(0, 1.69, 0)
-	body.add_child(helm)
-	# Night-vision goggles with a faint green glow
-	B.box(body, Vector3(0.14, 0.05, 0.06), Vector3(0, 1.72, -0.15), metal, false)
-	B.box(body, Vector3(0.1, 0.02, 0.01), Vector3(0, 1.72, -0.185), M.emissive(Color(0.3, 1.0, 0.4), 3.0), false)
-	# Arms + rifle
+	var boot := M.tinted("gear", Color(0.5, 0.45, 0.4))
+	# Legs (hip -> knee -> boot), pivoting at the hips so they can walk
+	for side in [-1, 1]:
+		var hip := Node3D.new()
+		hip.position = Vector3(0.11 * side, 0.92, 0)
+		body.add_child(hip)
+		_capsule(hip, 0.085, 0.5, Vector3(0, -0.22, 0), uni)
+		var knee := Node3D.new()
+		knee.position = Vector3(0, -0.45, 0)
+		hip.add_child(knee)
+		_capsule(knee, 0.075, 0.48, Vector3(0, -0.2, 0), uni)
+		B.box(knee, Vector3(0.12, 0.1, 0.26), Vector3(0, -0.42, -0.04), boot, false)
+		B.box(knee, Vector3(0.1, 0.1, 0.06), Vector3(0, -0.02, -0.07), gear, false)   # knee pad
+		if side < 0:
+			leg_l = hip
+			shin_l = knee
+		else:
+			leg_r = hip
+			shin_r = knee
+	B.box(body, Vector3(0.36, 0.2, 0.24), Vector3(0, 0.92, 0), uni, false)     # pelvis
+	B.box(body, Vector3(0.38, 0.06, 0.26), Vector3(0, 1.0, 0), gear, false)    # belt
+	torso = Node3D.new()
+	torso.position = Vector3(0, 0.95, 0)
+	body.add_child(torso)
+	_capsule(torso, 0.19, 0.62, Vector3(0, 0.3, 0), uni)
+	B.box(torso, Vector3(0.44, 0.42, 0.3), Vector3(0, 0.36, 0), gear, false)          # plate carrier
+	for i in 3:
+		B.box(torso, Vector3(0.09, 0.13, 0.07), Vector3(-0.12 + i * 0.12, 0.26, -0.18), M.tinted("gear", Color(0.8, 0.85, 0.7)), false)   # mag pouches
+	B.box(torso, Vector3(0.34, 0.42, 0.16), Vector3(0, 0.36, 0.23), M.tinted("uniform", Color(0.8, 0.8, 0.75)), false)   # backpack
+	B.box(torso, Vector3(0.05, 0.25, 0.04), Vector3(0.15, 0.62, -0.12), metal, false)  # radio antenna base
+	B.cyl(torso, 0.006, 0.006, 0.5, Vector3(0.16, 0.9, 0.18), metal, false, Vector3.ZERO, 4)
+	head_node = Node3D.new()
+	head_node.position = Vector3(0, 0.72, 0)
+	torso.add_child(head_node)
+	var face := B.mesh(head_node, SphereMesh.new(), Vector3(0, 0.02, 0), M.tinted("gear", Color(0.3, 0.28, 0.25)))   # balaclava
+	face.scale = Vector3(0.2, 0.24, 0.21)
+	var helm := SphereMesh.new()
+	helm.radius = 0.135
+	helm.height = 0.17
+	helm.is_hemisphere = true
+	B.mesh(head_node, helm, Vector3(0, 0.06, 0.01), M.tinted("uniform", Color(0.9, 0.9, 0.85)))
+	B.box(head_node, Vector3(0.28, 0.02, 0.29), Vector3(0, 0.055, 0.01), M.tinted("uniform", Color(0.8, 0.8, 0.75)), false)   # helmet rim
+	B.box(head_node, Vector3(0.14, 0.05, 0.06), Vector3(0, 0.09, -0.14), metal, false)   # NVG mount
+	B.box(head_node, Vector3(0.1, 0.02, 0.01), Vector3(0, 0.02, -0.108), M.emissive(Color(0.3, 1.0, 0.4), 2.0), false)   # goggle glow
+	# Arms holding the rifle
 	arm_r = Node3D.new()
-	arm_r.position = Vector3(0.3, 1.38, 0)
-	body.add_child(arm_r)
-	B.box(arm_r, Vector3(0.13, 0.13, 0.5), Vector3(0, -0.12, -0.22), uni, false)
-	B.box(body, Vector3(0.13, 0.13, 0.5), Vector3(-0.25, 1.26, -0.25), uni, false, Vector3(0, 25, 0))
+	arm_r.position = Vector3(0.24, 0.58, 0)
+	torso.add_child(arm_r)
+	_capsule(arm_r, 0.065, 0.4, Vector3(0, -0.12, -0.08), uni, Vector3(-50, 0, 0))
+	_capsule(arm_r, 0.06, 0.36, Vector3(-0.06, -0.24, -0.3), uni, Vector3(-80, 25, 0))
+	var arm_l := Node3D.new()
+	arm_l.position = Vector3(-0.24, 0.58, 0)
+	torso.add_child(arm_l)
+	_capsule(arm_l, 0.065, 0.4, Vector3(0, -0.12, -0.12), uni, Vector3(-60, 0, 0))
+	_capsule(arm_l, 0.06, 0.38, Vector3(0.12, -0.2, -0.42), uni, Vector3(-85, -40, 0))
 	var gun := Node3D.new()
-	gun.position = Vector3(0.05, 1.25, -0.45)
-	body.add_child(gun)
-	B.box(gun, Vector3(0.06, 0.1, 0.7), Vector3.ZERO, metal, false)
-	B.box(gun, Vector3(0.04, 0.16, 0.06), Vector3(0, -0.1, 0.05), metal, false)
+	gun.position = Vector3(0.05, 0.36, -0.42)
+	torso.add_child(gun)
+	B.box(gun, Vector3(0.055, 0.09, 0.62), Vector3.ZERO, metal, false)
+	B.box(gun, Vector3(0.04, 0.15, 0.06), Vector3(0, -0.1, -0.02), metal, false)
+	B.box(gun, Vector3(0.045, 0.06, 0.2), Vector3(0, -0.02, 0.36), M.get_mat("gun_polymer"), false)
 	if is_sniper:
-		B.box(gun, Vector3(0.05, 0.05, 0.25), Vector3(0, 0.08, 0.0), metal, false)
-		B.cyl(gun, 0.012, 0.012, 0.4, Vector3(0, 0.0, -0.55), metal, false, Vector3(90, 0, 0), 8)
+		B.cyl(gun, 0.025, 0.025, 0.28, Vector3(0, 0.08, 0.0), metal, false, Vector3(90, 0, 0), 8)
+		B.cyl(gun, 0.012, 0.012, 0.4, Vector3(0, 0.0, -0.5), metal, false, Vector3(90, 0, 0), 8)
 	gun_tip = Node3D.new()
-	gun_tip.position = Vector3(0, 0, -0.4 if not is_sniper else -0.75)
+	gun_tip.position = Vector3(0, 0, -0.34 if not is_sniper else -0.72)
 	gun.add_child(gun_tip)
 	_flash = B.omni(gun_tip, Vector3.ZERO, Color(1, 0.7, 0.35), 0.0, 8.0)
 	# Sniper laser sight (telegraphs the shot)
@@ -113,6 +156,28 @@ func _build_model() -> void:
 		laser.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		laser.visible = false
 		add_child(laser)
+
+
+## Walk cycle + aiming pose
+func _animate(delta: float) -> void:
+	if leg_l == null or state == State.DEAD:
+		return
+	var spd := Vector2(velocity.x, velocity.z).length()
+	_walk += delta * spd * 3.2
+	var swing := sin(_walk) * clampf(spd / 2.5, 0.0, 1.0) * 0.55
+	leg_l.rotation.x = swing
+	leg_r.rotation.x = -swing
+	shin_l.rotation.x = maxf(0.0, -sin(_walk + 0.6)) * clampf(spd / 2.5, 0.0, 1.0) * 0.7
+	shin_r.rotation.x = maxf(0.0, sin(_walk + 0.6)) * clampf(spd / 2.5, 0.0, 1.0) * 0.7
+	var bob := absf(cos(_walk)) * 0.04 * clampf(spd / 2.5, 0.0, 1.0)
+	torso.position.y = 0.95 + bob
+	# Lean into combat, crouch a little when aiming
+	var target_lean := 0.18 if state == State.COMBAT else 0.04
+	torso.rotation.x = lerpf(torso.rotation.x, -target_lean, clampf(delta * 5.0, 0.0, 1.0))
+	if state == State.COMBAT and _sees_player and player:
+		var to: Vector3 = player.eye_position() - head_node.global_position
+		var pitch := atan2(to.y, Vector2(to.x, to.z).length())
+		torso.rotation.x = lerpf(torso.rotation.x, -target_lean + pitch * 0.5, clampf(delta * 6.0, 0.0, 1.0))
 
 
 func reset_alert() -> void:
@@ -249,6 +314,7 @@ func _physics_process(delta: float) -> void:
 				awareness = 0.3
 
 	move_and_slide()
+	_animate(delta)
 	_flash.light_energy = maxf(0.0, _flash.light_energy - delta * 60.0)
 
 
@@ -437,7 +503,7 @@ func hand_signal() -> void:
 func take_hit(damage: float, hit_pos: Vector3, _dir: Vector3) -> void:
 	if state == State.DEAD:
 		return
-	var headshot := hit_pos.y - global_position.y > 1.5
+	var headshot := hit_pos.y - global_position.y > 1.52
 	health -= damage * (4.0 if headshot else 1.0)
 	S.play3d(self, "hit", hit_pos, -2.0)
 	if health <= 0.0:

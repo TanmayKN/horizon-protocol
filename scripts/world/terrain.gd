@@ -91,13 +91,14 @@ func _ready() -> void:
 			st.add_index(a); st.add_index(b); st.add_index(c)
 			st.add_index(b); st.add_index(d); st.add_index(c)
 	st.generate_normals()
+	st.generate_tangents()
 
 	var body := StaticBody3D.new()
 	body.name = "TerrainBody"
 	add_child(body)
 	var mi := MeshInstance3D.new()
 	mi.mesh = st.commit()
-	mi.material_override = M.get_mat("ground")
+	mi.material_override = _terrain_material()
 	body.add_child(mi)
 
 	var shape := HeightMapShape3D.new()
@@ -112,7 +113,44 @@ func _ready() -> void:
 	body.add_child(cs)
 
 
+func _terrain_material() -> Material:
+	if M.tex("forest_floor_albedo") == null:
+		return M.get_mat("ground")
+	var sm := ShaderMaterial.new()
+	sm.shader = load("res://shaders/terrain.gdshader")
+	for pair in [["forest", "forest_floor"], ["mud", "mud"], ["gravel", "gravel"], ["conc", "concrete"], ["rock", "rock"]]:
+		sm.set_shader_parameter(pair[0] + "_a", M.tex(pair[1] + "_albedo"))
+		sm.set_shader_parameter(pair[0] + "_n", M.tex(pair[1] + "_normal"))
+		sm.set_shader_parameter(pair[0] + "_r", M.tex(pair[1] + "_rough"))
+	return sm
+
+
+## Splat weights for the terrain shader: r = mud, g = gravel, b = concrete, a = rock
+func _weights_at(x: float, z: float, h: float) -> Color:
+	var w := Color(0, 0, 0, 0)
+	if z > -10.0:
+		w.g = clampf((z + 10.0) / 6.0, 0.0, 1.0)
+	if z > YARD_Z - 2.0:
+		w.b = 1.0
+		w.g = 0.0
+	var road_d := absf(x - road_x_at(z))
+	if z < YARD_Z:
+		w.r = clampf((ROAD_HALF + 0.8 - road_d) / 1.6, 0.0, 1.0)
+		if absf(x) < 5.0 and absf(z - FENCE_Z) < 5.0:
+			w.r = maxf(w.r, clampf((5.0 - Vector2(x, z - FENCE_Z).length()) / 2.0, 0.0, 1.0))
+	# Steep ground and the mountains are bare rock
+	var dx := height_at(x + 1.0, z) - height_at(x - 1.0, z)
+	var dz := height_at(x, z + 1.0) - height_at(x, z - 1.0)
+	var slope := Vector2(dx, dz).length() / 2.0
+	w.a = clampf((slope - 0.45) * 2.5, 0.0, 1.0)
+	if h > 12.0:
+		w.a = maxf(w.a, clampf((h - 12.0) / 8.0, 0.0, 0.9))
+	return w
+
+
 func _color_at(x: float, z: float, h: float) -> Color:
+	if M.tex("forest_floor_albedo") != null:
+		return _weights_at(x, z, h)
 	var n := noise.get_noise_2d(x * 3.0, z * 3.0)
 	var c := Color(0.2, 0.25, 0.14).lerp(Color(0.27, 0.24, 0.15), 0.5 + n * 0.5)   # forest floor + needles
 	if z > -10.0:

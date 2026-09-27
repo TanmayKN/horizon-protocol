@@ -204,6 +204,7 @@ func _quad(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, d: Vector3, col:
 		st.add_vertex(v)
 
 
+var _card_x: Array = []
 var _trunk_x: Array = []
 var _cone_x: Array = []
 var _bush_x: Array = []
@@ -211,6 +212,16 @@ var _bush_x: Array = []
 
 func _tree(p: Vector3, h: float) -> void:
 	_trunk_x.append(Transform3D(Basis().scaled(Vector3(0.3, h, 0.3)), p + Vector3(0, h / 2.0, 0)))
+	if M.tex("pine_card_albedo") != null:
+		var whorls := int(h / 1.1)
+		for i in whorls:
+			var t := float(i) / whorls
+			var length := lerpf(2.8, 0.5, t)
+			for k in 5:
+				var bb := Basis(Vector3.UP, k * TAU / 5.0 + rng.randf()) * Basis(Vector3.BACK, -deg_to_rad(lerpf(25, 8, t)))
+				_card_x.append(Transform3D(bb.scaled(Vector3.ONE * length), p + Vector3(0, lerpf(h * 0.25, h * 0.98, t), 0)))
+		_cone_x.append(Transform3D(Basis().scaled(Vector3(1.0, h * 0.5, 1.0)), p + Vector3(0, h * 0.55, 0)))
+		return
 	for i in 5:
 		var t := i / 5.0
 		var r := lerpf(2.4, 0.6, t)
@@ -237,7 +248,10 @@ func _flush_foliage() -> void:
 	bush.rings = 5
 	bush.radius = 0.5
 	bush.height = 1.0
-	for spec in [[trunk, _trunk_x, M.get_mat("bark")], [cone, _cone_x, M.get_mat("needles")], [bush, _bush_x, M.tinted("needles", Color(0.8, 1.0, 0.8))]]:
+	var specs := [[trunk, _trunk_x, M.get_mat("bark")], [cone, _cone_x, M.tinted("needles", Color(0.5, 0.55, 0.5))], [bush, _bush_x, M.tinted("needles", Color(0.8, 1.0, 0.8))]]
+	if not _card_x.is_empty():
+		specs.append([preload("res://scripts/world/seg1_timberline.gd").branch_card_mesh(), _card_x, M.get_mat("pine_card")])
+	for spec in specs:
 		var mm := MultiMesh.new()
 		mm.transform_format = MultiMesh.TRANSFORM_3D
 		mm.mesh = spec[0]

@@ -298,6 +298,74 @@ func open_vault() -> void:
 	tw.parallel().tween_property(vault_door, "position:x", 8.0, 3.0)
 
 
-func _physics_process(_delta: float) -> void:
+var heli: Node3D
+var _rotor: Node3D
+var _tail_rotor: Node3D
+
+
+func spawn_helicopter() -> void:
+	heli = Node3D.new()
+	heli.name = "Nightingale"
+	add_child(heli)
+	var paint := M.tinted("metal", Color(0.3, 0.34, 0.3))
+	var glass := M.tinted("glass", Color(0.3, 0.4, 0.45, 0.5))
+	B.mesh(heli, _bm(Vector3(2.4, 2.2, 7.0)), Vector3(0, 1.6, 0), paint)
+	B.mesh(heli, _bm(Vector3(2.2, 1.4, 1.6)), Vector3(0, 1.9, -4.0), glass)
+	B.mesh(heli, _bm(Vector3(0.5, 0.6, 7.5)), Vector3(0, 2.2, 6.8), paint)
+	B.mesh(heli, _bm(Vector3(0.12, 1.8, 1.2)), Vector3(0, 3.0, 10.3), paint)
+	for side in [-1.2, 1.2]:
+		B.mesh(heli, _bm(Vector3(0.12, 0.12, 5.0)), Vector3(side, 0.15, -0.5), M.get_mat("gun_metal"))
+		B.mesh(heli, _bm(Vector3(0.1, 0.5, 0.1)), Vector3(side, 0.4, -2.0), M.get_mat("gun_metal"))
+		B.mesh(heli, _bm(Vector3(0.1, 0.5, 0.1)), Vector3(side, 0.4, 1.0), M.get_mat("gun_metal"))
+	_rotor = Node3D.new()
+	_rotor.position = Vector3(0, 3.1, 0)
+	heli.add_child(_rotor)
+	for k in 4:
+		var blade := B.mesh(_rotor, _bm(Vector3(0.35, 0.05, 7.5)), Vector3.ZERO, M.get_mat("gun_metal"))
+		blade.rotation.y = k * PI / 2.0
+		blade.position = Vector3(sin(k * PI / 2.0), 0, cos(k * PI / 2.0)) * 3.75
+	_tail_rotor = Node3D.new()
+	_tail_rotor.position = Vector3(0.2, 3.0, 10.4)
+	heli.add_child(_tail_rotor)
+	for k in 2:
+		var tb := B.mesh(_tail_rotor, _bm(Vector3(0.05, 1.8, 0.2)), Vector3.ZERO, M.get_mat("gun_metal"))
+		tb.rotation.x = k * PI / 2.0
+	var search := B.spot(heli, Vector3(0, 0.5, -3.5), Vector3(-60, 0, 0), Color(1, 0.97, 0.9), 12.0, 50.0, 18.0, true)
+	search.light_volumetric_fog_energy = 3.0
+	B.omni(heli, Vector3(0, 0.3, 3), Color(1, 0.1, 0.1), 1.0, 5.0)
+	var snd := AudioStreamPlayer3D.new()
+	snd.stream = S.get_stream("engine")
+	snd.pitch_scale = 1.8
+	snd.volume_db = 6.0
+	snd.unit_size = 20.0
+	snd.max_distance = 200.0
+	heli.add_child(snd)
+	snd.play()
+	var wind := AudioStreamPlayer3D.new()
+	wind.stream = S.get_stream("wind")
+	wind.pitch_scale = 3.0
+	wind.volume_db = 4.0
+	wind.unit_size = 15.0
+	heli.add_child(wind)
+	wind.play()
+	# Fly in over the pass and settle just outside the gate
+	heli.position = Vector3(40, Y + 40, 540)
+	heli.rotation.y = PI * 0.8
+	var tw := create_tween()
+	tw.tween_property(heli, "position", Vector3(10, Y + 6.0, 592), 6.0).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(heli, "rotation:y", PI, 6.0)
+	tw.tween_property(heli, "position", Vector3(10, Y + 0.2, 594), 3.0).set_trans(Tween.TRANS_SINE)
+
+
+func _bm(size: Vector3) -> BoxMesh:
+	var b := BoxMesh.new()
+	b.size = size
+	return b
+
+
+func _physics_process(delta: float) -> void:
 	if drive:
 		drive.rotation.y += 0.02
+	if _rotor:
+		_rotor.rotation.y += delta * 28.0
+		_tail_rotor.rotation.x += delta * 40.0

@@ -282,7 +282,13 @@ func set_objective(text: String, marker = null) -> void:
 
 func radio(speaker: String, text: String, duration := 5.5) -> void:
 	_radio_name.text = speaker.to_upper()
-	_radio_name.modulate = Color(0.5, 0.95, 0.55) if speaker != "Vance" else Color(0.55, 0.8, 1.0)
+	_radio_name.modulate = Color(0.5, 0.95, 0.55)
+	if speaker == "Vance":
+		_radio_name.modulate = Color(0.55, 0.8, 1.0)
+	elif speaker.begins_with("Raskov") or speaker.begins_with("RASKOV"):
+		_radio_name.modulate = Color(1.0, 0.35, 0.3)
+	elif speaker.begins_with("Nightingale"):
+		_radio_name.modulate = Color(1.0, 0.85, 0.4)
 	_radio_text.text = text
 	_radio_panel.modulate.a = 1.0
 	_radio_hide = _t + duration
@@ -339,6 +345,53 @@ func mud_splash() -> void:
 func fade_to(alpha: float, time: float) -> void:
 	var tw := create_tween()
 	tw.tween_property(_fade, "color:a", alpha, time)
+
+
+## Opening briefing typed out over black. Returns when finished or skipped.
+var briefing_skip := false
+func briefing(lines: Array) -> void:
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.offset_left = -480
+	box.offset_right = 480
+	box.offset_top = -200
+	box.offset_bottom = 220
+	box.add_theme_constant_override("separation", 14)
+	add_child(box)
+	move_child(box, get_child_count() - 1)
+	var skip := _label("Click or press Space to skip", 13, Color(0.6, 0.6, 0.6))
+	_place(skip, Control.PRESET_CENTER_BOTTOM, -200, -50, 200, -25)
+	skip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	move_child(skip, get_child_count() - 1)
+	for i in lines.size():
+		var big: bool = i < 2
+		var l := _label("", 30 if i == 0 else (18 if big else 19), Color(0.95, 0.9, 0.7) if big else Color(0.85, 0.87, 0.88), box)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER if big else HORIZONTAL_ALIGNMENT_LEFT
+		var text: String = lines[i]
+		for c in text.length():
+			if briefing_skip:
+				break
+			l.text = text.substr(0, c + 1)
+			if c % 3 == 0:
+				await get_tree().create_timer(0.018).timeout
+		l.text = text
+		if briefing_skip:
+			continue
+		await get_tree().create_timer(0.5 if big else 0.9).timeout
+	if not briefing_skip:
+		await get_tree().create_timer(1.5).timeout
+	var tw := create_tween()
+	tw.tween_property(box, "modulate:a", 0.0, 0.8)
+	tw.parallel().tween_property(skip, "modulate:a", 0.0, 0.5)
+	await tw.finished
+	box.queue_free()
+	skip.queue_free()
+
+
+func _input(event: InputEvent) -> void:
+	if (event is InputEventMouseButton and event.pressed) or event.is_action_pressed("jump"):
+		briefing_skip = true
 
 
 func end_card(line1: String, body: String) -> void:

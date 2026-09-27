@@ -142,6 +142,7 @@ func _build_trees() -> void:
 
 var _trunks: Array = []
 var _cones: Array = []        # [Transform3D, dark?]
+var _cards: Array = []        # branch cards (Transform3D)
 
 
 func _add_tree(pos: Vector3, height: float, _bark: Material, needles: Material) -> void:
@@ -157,8 +158,29 @@ func _add_tree(pos: Vector3, height: float, _bark: Material, needles: Material) 
 	var base := Basis(Vector3.UP, yaw)
 	_trunks.append(Transform3D(base.scaled(Vector3(0.38, height, 0.38)), pos + Vector3(0, height / 2.0, 0)))
 	var dark := needles != M.get_mat("needles")
+	var use_cards := M.tex("pine_card_albedo") != null
+	var start := height * rng.randf_range(0.2, 0.3)
+	if use_cards:
+		# Whorls of drooping branch cards around the trunk + a dark inner core
+		var whorls := int(height / 0.9)
+		for i in whorls:
+			var t := float(i) / whorls
+			var y := lerpf(start, height * 0.98, t)
+			var length := lerpf(3.4, 0.5, pow(t, 0.85)) * rng.randf_range(0.85, 1.15)
+			var count := 6 if t < 0.8 else 4
+			var yaw0 := rng.randf() * TAU
+			for k in count:
+				var yaw_k := yaw0 + k * TAU / count + rng.randf_range(-0.25, 0.25)
+				var droop := deg_to_rad(lerpf(28.0, 8.0, t) + rng.randf_range(-6, 8))
+				var bb := Basis(Vector3.UP, yaw_k) * Basis(Vector3.BACK, -droop)
+				_cards.append(Transform3D(bb.scaled(Vector3(length, length, length)), pos + Vector3(0, y, 0)))
+		for i in 3:
+			var ct := float(i) / 3.0
+			var cr := lerpf(1.4, 0.4, ct)
+			var ch := (height - start) * 0.45
+			_cones.append([Transform3D(Basis().scaled(Vector3(cr, ch, cr)), pos + Vector3(0, start + ch * 0.5 + ct * (height - start) * 0.5, 0)), true])
+		return
 	var layers := rng.randi_range(9, 12)
-	var start := height * rng.randf_range(0.18, 0.28)
 	var spacing := (height * 0.98 - start) / layers
 	for i in layers:
 		var t := float(i) / layers
@@ -168,6 +190,23 @@ func _add_tree(pos: Vector3, height: float, _bark: Material, needles: Material) 
 		var off := Vector3(rng.randf_range(-0.25, 0.25), 0, rng.randf_range(-0.25, 0.25))
 		var b := Basis.from_euler(Vector3(deg_to_rad(rng.randf_range(-8, 8)), rng.randf() * TAU, deg_to_rad(rng.randf_range(-8, 8))))
 		_cones.append([Transform3D(b.scaled(Vector3(r, cone_h, r)), pos + Vector3(0, y + cone_h * 0.3, 0) + off), dark])
+
+
+static func branch_card_mesh() -> ArrayMesh:
+	# Two crossed quads from x = 0 (trunk) to x = 1 (branch tip)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var quads := [
+		[Vector3(0, 0, -0.45), Vector3(1, 0, -0.45), Vector3(1, 0, 0.45), Vector3(0, 0, 0.45), Vector3.UP],
+		[Vector3(0, 0.45, 0), Vector3(1, 0.45, 0), Vector3(1, -0.45, 0), Vector3(0, -0.45, 0), Vector3.BACK],
+	]
+	for q in quads:
+		var uvs := [Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]
+		for idx in [0, 1, 2, 0, 2, 3]:
+			st.set_normal(q[4])
+			st.set_uv(uvs[idx])
+			st.add_vertex(q[idx])
+	return st.commit()
 
 
 func _flush_trees() -> void:
@@ -189,9 +228,12 @@ func _flush_trees() -> void:
 	for c in _cones:
 		(dark if c[1] else light).append(c[0])
 	_multimesh(cone, light, M.get_mat("needles"))
-	_multimesh(cone, dark, M.tinted("needles", Color(0.75, 0.8, 0.75)))
+	_multimesh(cone, dark, M.tinted("needles", Color(0.45, 0.5, 0.45)))
+	if not _cards.is_empty():
+		_multimesh(branch_card_mesh(), _cards, M.get_mat("pine_card"))
 	_trunks.clear()
 	_cones.clear()
+	_cards.clear()
 
 
 func _multimesh(m: Mesh, xforms: Array, mat: Material) -> void:
@@ -256,27 +298,57 @@ func _crossed_quads(w: float, height: float) -> ArrayMesh:
 	return st.commit()
 
 
+func _rock_mesh(seed_val: int) -> ArrayMesh:
+	var sm := SphereMesh.new()
+	sm.radius = 1.0
+	sm.height = 2.0
+	sm.radial_segments = 14
+	sm.rings = 8
+	var arrays := sm.get_mesh_arrays()
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var n := FastNoiseLite.new()
+	n.seed = seed_val
+	n.frequency = 1.1
+	for i in verts.size():
+		var v := verts[i]
+		var d := 1.0 + n.get_noise_3dv(v) * 0.45
+		v *= d
+		v.y *= 0.62
+		if v.y < -0.2:
+			v.y = -0.2 + (v.y + 0.2) * 0.3   # flatter base
+		verts[i] = v
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+	var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+	for k in idx:
+		st.set_uv(uvs[k])
+		st.add_vertex(verts[k])
+	st.generate_normals()
+	st.generate_tangents()
+	return st.commit()
+
+
 func _build_rocks() -> void:
-	var rock := M.tinted("concrete", Color(0.45, 0.46, 0.44))
-	for i in 45:
+	var rock := M.get_mat("rock")
+	var meshes := []
+	for k in 6:
+		meshes.append(_rock_mesh(500 + k))
+	for i in 55:
 		var x := rng.randf_range(-100, 100)
 		var z := rng.randf_range(-110, -36)
 		if absf(x - terrain.road_x_at(z)) < 7.0 or (absf(x) < 4.0 and z > -45.0):
 			continue
-		var s := rng.randf_range(0.6, 2.2)
+		var s := rng.randf_range(0.5, 2.4)
 		var body := StaticBody3D.new()
-		body.position = Vector3(x, h(x, z) + s * 0.2, z)
-		body.rotation = Vector3(rng.randf(), rng.randf() * TAU, rng.randf())
+		body.position = Vector3(x, h(x, z) + s * 0.05, z)
+		body.rotation = Vector3(rng.randf_range(-0.2, 0.2), rng.randf() * TAU, rng.randf_range(-0.2, 0.2))
 		add_child(body)
-		var sm := SphereMesh.new()
-		sm.radius = s
-		sm.height = s * 1.3
-		sm.radial_segments = 8
-		sm.rings = 5
-		B.mesh(body, sm, Vector3.ZERO, rock)
+		var mi := B.mesh(body, meshes[i % meshes.size()], Vector3.ZERO, rock)
+		mi.scale = Vector3(s, s * rng.randf_range(0.7, 1.2), s * rng.randf_range(0.8, 1.3))
 		var shape := SphereShape3D.new()
-		shape.radius = s * 0.7
-		B.add_shape(body, shape, Vector3.ZERO)
+		shape.radius = s * 0.75
+		B.add_shape(body, shape, Vector3(0, s * 0.1, 0))
 
 
 func _fence_line(z: float, x0: float, x1: float, gap_min: float, gap_max: float, height := 2.4) -> void:
