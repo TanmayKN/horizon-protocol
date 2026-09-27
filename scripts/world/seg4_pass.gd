@@ -377,6 +377,10 @@ func _build_truck() -> void:
 	add_child(truck)
 	var cab := M.tinted("rust", Color(0.25, 0.3, 0.22))
 	var wood := M.get_mat("wood")
+	var model := MD.place(truck, "supply_truck", Vector3.ZERO, Vector3.ZERO, Vector3.ONE, Color(0.36, 0.4, 0.3))
+	if model:
+		_truck_extras()
+		return
 	B.mesh(truck, _bm(Vector3(2.4, 0.4, 7.5)), Vector3(0, 0.9, 0.8), M.get_mat("gun_metal"))   # chassis
 	B.mesh(truck, _bm(Vector3(2.4, 2.2, 2.2)), Vector3(0, 2.0, -2.6), cab)                   # cab
 	B.mesh(truck, _bm(Vector3(2.2, 0.9, 0.05)), Vector3(0, 2.5, -3.72), M.get_mat("glass"))
@@ -401,6 +405,25 @@ func _build_truck() -> void:
 	B.mesh(truck, _bm(Vector3(0.35, 0.2, 0.05)), Vector3(0.8, 1.4, -3.72), M.emissive(Color(1, 0.95, 0.8), 5.0))
 	bed_anchor = Node3D.new()
 	bed_anchor.position = Vector3(0.2, 1.2, 2.4)
+	truck.add_child(bed_anchor)
+	_engine = AudioStreamPlayer3D.new()
+	_engine.stream = S.get_stream("engine")
+	_engine.volume_db = -6.0
+	_engine.unit_size = 8.0
+	truck.add_child(_engine)
+	truck.visible = false
+	truck.global_position = pos_at(0.0) + Vector3(0, -50, 0)
+
+
+## Driver, lights, bed anchor and engine sound (shared by both truck versions)
+func _truck_extras() -> void:
+	B.mesh(truck, _bm(Vector3(0.5, 0.7, 0.4)), Vector3(-0.5, 2.25, -2.2), M.get_mat("uniform"))
+	var hd := B.mesh(truck, SphereMesh.new(), Vector3(-0.5, 2.8, -2.2), M.get_mat("gear"))
+	hd.scale = Vector3(0.25, 0.25, 0.25)
+	var hl := B.spot(truck, Vector3(0, 1.6, -4.4), Vector3(-5, 0, 0), Color(1, 0.95, 0.8), 4.0, 45.0, 32.0)
+	hl.light_volumetric_fog_energy = 1.5
+	bed_anchor = Node3D.new()
+	bed_anchor.position = Vector3(0.2, 1.17, 2.4)
 	truck.add_child(bed_anchor)
 	_engine = AudioStreamPlayer3D.new()
 	_engine.stream = S.get_stream("engine")

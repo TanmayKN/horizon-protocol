@@ -19,18 +19,19 @@ var gunner: Node3D
 var _flash: OmniLight3D
 
 
+const MD := preload("res://scripts/models.gd")
+
+
 func _ready() -> void:
 	var paint := M.tinted("rust", Color(0.42, 0.4, 0.3))
-	B.mesh(self, _bm(Vector3(2.1, 0.9, 5.0)), Vector3(0, 0.9, 0), paint)
-	B.mesh(self, _bm(Vector3(2.0, 1.0, 1.9)), Vector3(0, 1.8, -0.9), paint)
-	B.mesh(self, _bm(Vector3(1.9, 0.7, 0.05)), Vector3(0, 1.9, -1.86), M.get_mat("glass"))
-	for wx in [-1.0, 1.0]:
-		for wz in [-1.6, 1.6]:
-			var w := B.mesh(self, CylinderMesh.new(), Vector3(wx, 0.45, wz), M.get_mat("black"), Vector3(0, 0, 90))
-			w.scale = Vector3(0.45, 0.15, 0.45)
-	# Headlights
-	B.mesh(self, _bm(Vector3(0.3, 0.15, 0.05)), Vector3(-0.7, 1.1, -2.52), M.emissive(Color(1, 0.95, 0.8), 4.0))
-	B.mesh(self, _bm(Vector3(0.3, 0.15, 0.05)), Vector3(0.7, 1.1, -2.52), M.emissive(Color(1, 0.95, 0.8), 4.0))
+	if MD.place(self, "technical", Vector3.ZERO, Vector3.ZERO, Vector3.ONE, Color(0.5, 0.46, 0.36)) == null:
+		B.mesh(self, _bm(Vector3(2.1, 0.9, 5.0)), Vector3(0, 0.9, 0), paint)
+		B.mesh(self, _bm(Vector3(2.0, 1.0, 1.9)), Vector3(0, 1.8, -0.9), paint)
+		B.mesh(self, _bm(Vector3(1.9, 0.7, 0.05)), Vector3(0, 1.9, -1.86), M.get_mat("glass"))
+		for wx in [-1.0, 1.0]:
+			for wz in [-1.6, 1.6]:
+				var w := B.mesh(self, CylinderMesh.new(), Vector3(wx, 0.45, wz), M.get_mat("black"), Vector3(0, 0, 90))
+				w.scale = Vector3(0.45, 0.15, 0.45)
 	var hl := B.spot(self, Vector3(0, 1.1, -2.6), Vector3(-6, 0, 0), Color(1, 0.95, 0.8), 3.0, 35.0, 30.0)
 	hl.light_volumetric_fog_energy = 1.5
 	# Mounted gun + gunner in the bed

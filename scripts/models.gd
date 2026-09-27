@@ -29,6 +29,12 @@ static func material_for(mat_name: String, tint: Color) -> Material:
 			return M.tinted("concrete", Color(0.62, 0.55, 0.4))
 		"lamp_glass":
 			return M.emissive(Color(1, 0.97, 0.9), 5.0)
+		"tail_light":
+			return M.emissive(Color(1, 0.08, 0.05), 3.0)
+		"truck_paint", "heli_paint":
+			return M.tinted("metal", tint)
+		"glass":
+			return M.get_mat("glass")
 		"metal", "rust", "gun_metal", "gun_polymer", "gear", "black", "wood", "concrete", "bark", "log":
 			return M.get_mat(n)
 	return M.get_mat("metal")
