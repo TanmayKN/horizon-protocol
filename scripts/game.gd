@@ -50,7 +50,7 @@ var _amb_wind: AudioStreamPlayer
 
 
 func _ready() -> void:
-	_setup_inputs()
+	setup_inputs()
 	var vp := get_viewport()
 	vp.msaa_3d = Viewport.MSAA_2X
 	vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
@@ -243,9 +243,15 @@ func spawn_intel(pos: Vector3, title: String, body: String) -> void:
 	var shape := SphereShape3D.new()
 	shape.radius = 1.6
 	B.add_shape(a, shape, Vector3.ZERO)
-	B.box(a, Vector3(0.32, 0.03, 0.24), Vector3.ZERO, M.tinted("wood", Color(0.75, 0.6, 0.35)), false)
-	B.box(a, Vector3(0.28, 0.01, 0.2), Vector3(0.01, 0.02, 0), M.emissive(Color(0.95, 0.92, 0.8), 0.5), false)
-	B.omni(a, Vector3(0, 0.3, 0), Color(1, 0.85, 0.5), 0.6, 2.5)
+	const MD := preload("res://scripts/models.gd")
+	# Red classified dossier with a cold blue glow and an INTEL tag
+	if MD.place(a, "intel_folder", Vector3(0, -0.02, 0), Vector3(0, randf() * 360.0, 0), Vector3.ONE * 1.2) == null:
+		B.box(a, Vector3(0.32, 0.03, 0.24), Vector3.ZERO, M.tinted("wood", Color(0.75, 0.6, 0.35)), false)
+	B.omni(a, Vector3(0, 0.35, 0), Color(0.45, 0.7, 1.0), 0.9, 2.5)
+	var tag := B.label3d(a, "INTEL", Vector3(0, 0.4, 0), 30, Color(0.55, 0.8, 1.0))
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.visibility_range_end = 10.0
+	tag.outline_size = 6
 	a.set_meta("title", title)
 	a.set_meta("body", body)
 	add_child(a)
@@ -277,7 +283,7 @@ func _check_intel() -> void:
 		_intel_near = null
 
 
-const AMMO_COLORS := {"5.56": Color(0.45, 0.55, 0.3), "7.62": Color(0.55, 0.42, 0.25), ".308": Color(0.5, 0.2, 0.15), "9mm": Color(0.35, 0.4, 0.5)}
+const AMMO_COLORS := {"5.56": Color(0.35, 0.95, 0.35), "7.62": Color(1.0, 0.65, 0.15), ".308": Color(1.0, 0.25, 0.2), "9mm": Color(0.75, 0.4, 1.0)}
 
 
 ## An ammo pouch. kind "" = ammo for whatever gun the player is holding (supply boxes).
@@ -288,9 +294,33 @@ func spawn_ammo(pos: Vector3, kind := "", amount := 30) -> void:
 	shape.radius = 1.1
 	B.add_shape(a, shape, Vector3.ZERO)
 	var M := preload("res://scripts/mats.gd")
-	var c: Color = AMMO_COLORS.get(kind, Color(0.55, 0.6, 0.45))
-	B.box(a, Vector3(0.3, 0.16, 0.2), Vector3.ZERO, M.tinted("uniform", c), false)
-	B.box(a, Vector3(0.31, 0.03, 0.21), Vector3(0, 0.045, 0), M.emissive(Color(1, 0.8, 0.3), 1.2), false)
+	const MD := preload("res://scripts/models.gd")
+	var c: Color = AMMO_COLORS.get(kind, Color(0.32, 0.36, 0.25))
+	# Arcade-style ammo pickup: a colour-coded ammo can that floats, spins and glows (colour = calibre)
+	var holder := Node3D.new()
+	a.add_child(holder)
+	var can_tint := c.lerp(Color(0.3, 0.33, 0.24), 0.45)
+	if MD.place(holder, "ammo_can", Vector3(0, -0.12, 0), Vector3.ZERO, Vector3.ONE * 1.4, can_tint) == null:
+		B.box(holder, Vector3(0.3, 0.16, 0.2), Vector3.ZERO, M.tinted("uniform", c), false)
+	B.omni(a, Vector3(0, 0.25, 0), c, 1.2, 2.2)
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.32
+	tm.outer_radius = 0.36
+	ring.mesh = tm
+	ring.material_override = M.emissive(c, 3.0)
+	ring.position = Vector3(0, -0.13, 0)
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	a.add_child(ring)
+	var spin := holder.create_tween().set_loops()
+	spin.tween_property(holder, "rotation:y", TAU, 2.5).from(0.0)
+	var bob := holder.create_tween().set_loops().set_trans(Tween.TRANS_SINE)
+	bob.tween_property(holder, "position:y", 0.12, 0.8).from(0.0)
+	bob.tween_property(holder, "position:y", 0.0, 0.8)
+	var tag := B.label3d(a, ("AMMO  " + kind) if kind != "" else "AMMO", Vector3(0, 0.5, 0), 28, c.lightened(0.3))
+	tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	tag.visibility_range_end = 12.0
+	tag.outline_size = 6
 	add_child(a)
 	a.body_entered.connect(func(b):
 		if b == player and is_instance_valid(a):
@@ -565,13 +595,14 @@ func set_atmosphere(mode: String) -> void:
 
 # ------------------------------------------------------------------ input map
 
-func _setup_inputs() -> void:
+func setup_inputs() -> void:
 	var keys := {
 		"move_forward": [KEY_W, KEY_UP], "move_back": [KEY_S, KEY_DOWN],
 		"move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT],
 		"sprint": [KEY_SHIFT], "crouch": [KEY_C, KEY_CTRL], "prone": [KEY_Z],
 		"jump": [KEY_SPACE], "lean_left": [KEY_Q], "lean_right": [KEY_E],
 		"interact": [KEY_F], "reload": [KEY_R],
+		"weapon_1": [KEY_1], "weapon_2": [KEY_2], "weapon_3": [KEY_3], "toggle_view": [KEY_V],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):

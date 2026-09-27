@@ -225,7 +225,7 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "Get down to the second storey. The transformer blast took out the west windows. That's your exit.")
 			say(OVERWATCH, "Vance... they were waiting for you. Somebody tipped them off.", 1.5)
 			say(VANCE, "Then we find out who. After we get out of here.")
-			hud.set_objective("Fight your way down to the second storey", Vector3(47.5, game.seg2.FLOOR_H + 1.2, 114.5))
+			hud.set_objective("Fight your way down to the second storey", Vector3(47.2, game.seg2.FLOOR_H * 1.5 + 1.2, 107.5))
 		"s3_catwalk":
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
 			_wave = []
@@ -244,7 +244,7 @@ func _go(new_step: String) -> void:
 			say(OVERWATCH, "NOW, VANCE!", 0.0, true)
 			game.start_segment4()
 		"s4_ride":
-			hud.set_objective("Survive the escape  -  shoot the pursuing technicals")
+			hud.set_objective("Survive the escape  -  shoot the pursuing gun trucks")
 			say(OVERWATCH, "Got you! Hold on to something!", 0.2, true)
 			say(VANCE, "Just drive, Reyes!")
 		"s5_enter":
@@ -340,7 +340,7 @@ func skip() -> void:
 			if step == "s3_catwalk":
 				_step_t = 99.0
 		"s3_down":
-			game.player.global_position = Vector3(47.5, game.seg2.FLOOR_H + 0.3, 113.0)
+			game.player.global_position = Vector3(43.0, game.seg2.FLOOR_H + 0.3, 112.0)
 		"s3_window":
 			if _near3(game.seg2.WINDOW_POS, 2.8):
 				_go("s4_escape")
@@ -506,7 +506,7 @@ func on_seg4_event(name: String) -> void:
 			game.seg2.stop_alarm()
 			say(OVERWATCH, "Hold on, gate!", 0.0, true)
 		"techs1":
-			say(OVERWATCH, "Technicals on our six! Light 'em up, Vance! Take out the gunners!", 0.5, true)
+			say(OVERWATCH, "Kranor gun trucks on our six! Light 'em up, Vance! Take out the gunners!", 0.5, true)
 		"bridge_warn":
 			say(OVERWATCH, "Bridge coming up. It's older than both of us. Hang on!", 0.0, true)
 		"techs2":

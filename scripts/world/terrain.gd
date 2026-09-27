@@ -85,7 +85,7 @@ func surface_at(pos: Vector3) -> String:
 	if pos.z < -50.0 and creek_dist(pos.x, pos.z) < 2.2:
 		return "mud"   # wading through the creek
 	if pos.z > YARD_Z - 2.0 and pos.y < 1.0:
-		return "hard"
+		return "gravel"   # the Kranor yard is laid with road gravel
 	if absf(pos.x - road_x_at(pos.z)) < ROAD_HALF and pos.z < YARD_Z:
 		return "mud"
 	if absf(pos.x) < 4.0 and absf(pos.z - FENCE_Z) < 4.0:

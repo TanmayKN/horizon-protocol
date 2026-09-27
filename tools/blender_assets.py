@@ -722,32 +722,104 @@ def knife():
     export("knife")
 
 
+
+def ammo_can():
+    """Steel military ammo can (M2A1 style) with carry handle and lid latch. Origin at the bottom centre."""
+    reset()
+    A = "ammo_paint"
+    box("body", (0.28, 0.14, 0.17), (0, 0, 0.085), A, 0.008)
+    box("lid", (0.29, 0.15, 0.03), (0, 0, 0.185), A, 0.006)
+    box("lid_rib", (0.26, 0.02, 0.012), (0, 0, 0.205), A, 0.003)
+    box("gasket", (0.281, 0.141, 0.006), (0, 0, 0.168), "black")
+    box("latch", (0.03, 0.02, 0.07), (0.15, 0, 0.16), "gun_metal", 0.003)
+    box("hinge", (0.025, 0.12, 0.02), (-0.145, 0, 0.18), "gun_metal")
+    for sx in (-0.07, 0.07):
+        box("handle_post", (0.012, 0.012, 0.03), (sx, 0, 0.215), "gun_metal")
+    box("handle", (0.16, 0.02, 0.012), (0, 0, 0.232), "gun_metal", 0.004)
+    for side in (-1, 1):
+        box("stencil_band", (0.24, 0.002, 0.03), (0, side * 0.0705, 0.1), "stencil")
+        box("rib", (0.26, 0.004, 0.012), (0, side * 0.0715, 0.04), A)
+    export("ammo_can")
+
+
+def intel_folder():
+    """Classified dossier: red folder with papers and a photo sticking out. Origin at the bottom centre."""
+    reset()
+    box("folder_back", (0.32, 0.24, 0.006), (0, 0, 0.003), "folder_red", 0.002)
+    box("papers", (0.3, 0.22, 0.012), (0.01, 0.005, 0.012), "paper")
+    box("paper_out", (0.2, 0.15, 0.002), (0.09, 0.07, 0.02), "paper", rot=(0, 0, 18))
+    box("photo", (0.09, 0.07, 0.002), (-0.08, 0.06, 0.021), "photo", rot=(0, 0, -12))
+    box("folder_front", (0.32, 0.24, 0.006), (0, -0.01, 0.024), "folder_red", 0.002, rot=(-4, 0, 3))
+    box("secret_band", (0.3, 0.04, 0.002), (0, -0.05, 0.028), "stencil", rot=(-4, 0, 3))
+    export("intel_folder")
+
+
 def technical():
-    """Pickup truck ('technical'). Front toward +Y. Gun mount point in the bed at (0, -1.2, 1.35)."""
+    """Military light utility vehicle (4x4) with a ring-mounted machine gun. Front toward +Y.
+    Gunner stands in the rear bay at (0, -1.2, 1.35); gun muzzle at (0, 0.52, 2.62)."""
     reset()
     P = "truck_paint"
-    box("body_lower", (2.0, 5.0, 0.7), (0, 0, 0.85), P, 0.06)
-    box("cab", (1.9, 1.7, 0.9), (0, 0.55, 1.65), P, 0.1)
-    box("bonnet", (1.95, 1.5, 0.35), (0, 1.8, 1.35), P, 0.06)
-    box("windscreen", (1.75, 0.04, 0.7), (0, 1.35, 1.7), "glass", rot=(-28, 0, 0))
-    box("rear_window", (1.6, 0.04, 0.45), (0, -0.31, 1.75), "glass")
-    for sx in (-0.96, 0.96):
-        box("door_window", (0.04, 1.0, 0.45), (sx, 0.55, 1.75), "glass")
-    box("grille", (1.4, 0.05, 0.35), (0, 2.52, 1.1), "gun_metal")
-    box("bullbar", (1.9, 0.12, 0.5), (0, 2.65, 1.0), "gun_metal", 0.03)
-    for sx in (-0.65, 0.65):
-        box("headlight", (0.3, 0.04, 0.14), (sx, 2.52, 1.33), "lamp_glass")
-    # Open bed
-    box("bed_floor", (1.8, 2.1, 0.06), (0, -1.35, 1.2), "gun_metal")
-    for sx in (-0.95, 0.95):
-        box("bed_side", (0.08, 2.1, 0.45), (sx, -1.35, 1.45), P)
-    box("tailgate", (1.9, 0.08, 0.45), (0, -2.45, 1.45), P)
-    box("roll_bar", (1.8, 0.08, 0.08), (0, -0.45, 2.3), "gun_metal")
-    for sx in (-0.88, 0.88):
-        box("roll_bar_leg", (0.08, 0.08, 0.95), (sx, -0.45, 1.85), "gun_metal")
-    for sx in (-0.95, 0.95):
-        _wheel(sx, 1.6, 0.42, 0.3)
-        _wheel(sx, -1.5, 0.42, 0.3)
+    # chassis + wide low body with flared fenders
+    box("frame", (1.2, 4.6, 0.25), (0, 0.0, 0.62), "gun_metal")
+    box("body", (2.2, 4.7, 0.6), (0, 0.0, 1.0), P, 0.05)
+    for sx in (-1.12, 1.12):
+        for yy in (1.55, -1.45):
+            _arch("fender", sx, yy, 0.52, 0.62, 0.34, 0.035, P, a0=0, a1=180, segs=10)
+            box("fender_top", (0.34, 1.2, 0.04), (sx, yy, 1.18), P, 0.01)
+        box("rocker", (0.1, 1.6, 0.25), (sx, 0.05, 0.82), "gun_metal", 0.02)
+        box("step", (0.28, 0.6, 0.04), (sx * 1.08, 0.1, 0.7), "gun_metal")
+    # sloped bonnet with vent slots and a split grille
+    box("bonnet", (2.1, 1.5, 0.2), (0, 1.55, 1.35), P, 0.04, rot=(-6, 0, 0))
+    for i in range(6):
+        box("bonnet_vent", (1.2, 0.04, 0.02), (0, 1.2 + i * 0.12, 1.46 + i * 0.0125), "black")
+    box("grille", (1.7, 0.08, 0.55), (0, 2.34, 1.05), P, 0.02)
+    for i in range(9):
+        box("grille_slot", (0.07, 0.1, 0.4), (-0.64 + i * 0.16, 2.37, 1.07), "black")
+    box("bumper", (2.2, 0.25, 0.25), (0, 2.45, 0.7), "gun_metal", 0.03)
+    cyl("winch", 0.1, 0.8, (0, 2.5, 0.88), "gun_metal", rot=(0, 90, 0), verts=12)
+    for sx in (-0.78, 0.78):
+        cyl("headlight", 0.1, 0.05, (sx, 2.4, 1.2), "lamp_glass", rot=(90, 0, 0), verts=14)
+        box("light_guard", (0.28, 0.04, 0.04), (sx, 2.46, 1.2), "gun_metal")
+        box("blackout", (0.1, 0.04, 0.06), (sx * 0.62, 2.39, 1.24), "tail_light")
+    # armoured cabin: flat panels, small thick windows, roof with a gunner hatch ring
+    box("cabin_lower", (2.1, 1.7, 0.5), (0, 0.15, 1.55), P, 0.03)
+    box("windscreen_frame", (2.0, 0.1, 0.6), (0, 0.95, 2.0), P, 0.02, rot=(-12, 0, 0))
+    for sx in (-0.48, 0.48):
+        box("windscreen", (0.82, 0.03, 0.45), (sx, 1.0, 2.0), "glass", rot=(-12, 0, 0))
+    for sx in (-1.03, 1.03):
+        box("door", (0.08, 1.5, 0.95), (sx, 0.15, 1.75), P, 0.02)
+        box("door_window", (0.02, 0.55, 0.35), (sx * 1.02, 0.45, 2.0), "glass")
+        box("door_window2", (0.02, 0.55, 0.35), (sx * 1.02, -0.2, 2.0), "glass")
+        box("door_handle", (0.04, 0.14, 0.03), (sx * 1.04, 0.1, 1.8), "metal")
+        box("mirror", (0.04, 0.16, 0.2), (sx * 1.2, 0.95, 2.05), "gun_metal", 0.01)
+        box("mirror_arm", (0.2, 0.03, 0.03), (sx * 1.1, 0.95, 2.05), "gun_metal")
+    box("roof", (2.1, 1.7, 0.08), (0, 0.15, 2.3), P, 0.03)
+    # rear bay (open) where the gunner stands
+    box("bay_floor", (2.0, 1.9, 0.06), (0, -1.45, 1.32), "gun_metal")
+    for sx in (-1.03, 1.03):
+        box("bay_side", (0.08, 1.9, 0.55), (sx, -1.45, 1.58), P, 0.02)
+    box("tailgate", (2.1, 0.08, 0.55), (0, -2.38, 1.58), P, 0.02)
+    cyl("spare", 0.42, 0.3, (0, -2.55, 1.35), "black", rot=(90, 0, 0), verts=20, bevel=0.03)
+    cyl("spare_hub", 0.22, 0.32, (0, -2.55, 1.35), "rim_paint", rot=(90, 0, 0), verts=12)
+    for sx in (-0.8, 0.8):
+        box("jerry_can", (0.16, 0.34, 0.46), (sx, -2.2, 1.6), "jerry_paint", 0.02)
+        box("tail_light", (0.14, 0.03, 0.08), (sx * 1.2, -2.37, 1.2), "tail_light")
+    # gun ring on a pedestal + shielded machine gun
+    cyl("pedestal", 0.07, 1.2, (0, -0.95, 1.95), "gun_metal", verts=10)
+    torus("gun_ring", 0.45, 0.04, (0, -0.95, 2.45), "gun_metal", segs=24)
+    box("shield", (0.9, 0.05, 0.5), (0, -0.2, 2.65), P, 0.02, rot=(8, 0, 0))
+    box("shield_l", (0.05, 0.3, 0.45), (-0.45, -0.32, 2.65), P, 0.02)
+    box("shield_r", (0.05, 0.3, 0.45), (0.45, -0.32, 2.65), P, 0.02)
+    box("mg_body", (0.1, 0.5, 0.14), (0, -0.4, 2.62), "gun_metal", 0.01)
+    cyl("mg_barrel", 0.025, 0.85, (0, 0.1, 2.62), "gun_metal", rot=(90, 0, 0), verts=10)
+    cyl("mg_shroud", 0.04, 0.35, (0, -0.05, 2.62), "gun_metal", rot=(90, 0, 0), verts=10)
+    box("ammo_box", (0.18, 0.2, 0.16), (0.14, -0.45, 2.56), "jerry_paint", 0.01)
+    box("mg_grips", (0.2, 0.04, 0.12), (0, -0.7, 2.6), "gun_metal")
+    cyl("antenna", 0.008, 2.0, (0.9, -0.3, 3.2), "black", verts=5)
+    # big off-road tyres
+    for sx in (-1.0, 1.0):
+        _tire(sx, 1.55, 0.5, 0.36)
+        _tire(sx, -1.45, 0.5, 0.36)
     export("technical")
 
 
@@ -1131,7 +1203,7 @@ def downpipe():
     export("downpipe")
 
 
-ALL = ["transformer", "power_pole", "rollup_door", "window_frame", "hvac_unit", "wall_lamp", "downpipe", "soldier", "raskov", "supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree", "ak", "dmr", "pistol", "knife"]
+ALL = ["transformer", "power_pole", "rollup_door", "window_frame", "hvac_unit", "wall_lamp", "downpipe", "soldier", "raskov", "supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree", "ak", "dmr", "pistol", "knife", "ammo_can", "intel_folder"]
 
 if __name__ == "__main__":
     todo = [a for a in sys.argv[1:] if a in ALL] or ALL

@@ -1,5 +1,5 @@
 extends StaticBody3D
-## Pursuing "technical" (pickup truck with a mounted gun) during the truck escape.
+## Pursuing Kranor gun truck (military 4x4 with a ring-mounted machine gun) during the truck escape.
 
 const B := preload("res://scripts/build.gd")
 const M := preload("res://scripts/mats.gd")
@@ -24,7 +24,7 @@ const MD := preload("res://scripts/models.gd")
 
 func _ready() -> void:
 	var paint := M.tinted("rust", Color(0.42, 0.4, 0.3))
-	if MD.place(self, "technical", Vector3.ZERO, Vector3.ZERO, Vector3.ONE, Color(0.5, 0.46, 0.36)) == null:
+	if MD.place(self, "technical", Vector3.ZERO, Vector3.ZERO, Vector3.ONE, Color(0.34, 0.37, 0.28)) == null:
 		B.mesh(self, _bm(Vector3(2.1, 0.9, 5.0)), Vector3(0, 0.9, 0), paint)
 		B.mesh(self, _bm(Vector3(2.0, 1.0, 1.9)), Vector3(0, 1.8, -0.9), paint)
 		B.mesh(self, _bm(Vector3(1.9, 0.7, 0.05)), Vector3(0, 1.9, -1.86), M.get_mat("glass"))
@@ -32,23 +32,34 @@ func _ready() -> void:
 			for wz in [-1.6, 1.6]:
 				var w := B.mesh(self, CylinderMesh.new(), Vector3(wx, 0.45, wz), M.get_mat("black"), Vector3(0, 0, 90))
 				w.scale = Vector3(0.45, 0.15, 0.45)
-	var hl := B.spot(self, Vector3(0, 1.1, -2.6), Vector3(-6, 0, 0), Color(1, 0.95, 0.8), 3.0, 35.0, 30.0)
+	var hl := B.spot(self, Vector3(0, 1.2, -2.5), Vector3(-6, 0, 0), Color(1, 0.95, 0.8), 3.0, 35.0, 30.0)
 	hl.light_volumetric_fog_energy = 1.5
-	# Mounted gun + gunner in the bed
+	# Gunner standing in the rear bay behind the ring-mounted machine gun
 	gunner = Node3D.new()
 	gunner.position = Vector3(0, 1.35, 1.2)
 	add_child(gunner)
-	B.mesh(gunner, _bm(Vector3(0.45, 0.7, 0.3)), Vector3(0, 0.55, 0), M.get_mat("uniform"))
-	var head := B.mesh(gunner, SphereMesh.new(), Vector3(0, 1.1, 0), M.get_mat("gear"))
-	head.scale = Vector3(0.28, 0.28, 0.28)
-	B.mesh(self, _bm(Vector3(0.12, 0.12, 1.3)), Vector3(0, 2.3, 0.5), M.get_mat("gun_metal"))
-	B.mesh(self, _bm(Vector3(0.08, 0.9, 0.08)), Vector3(0, 1.8, 1.0), M.get_mat("gun_metal"))
+	var soldier := MD.place(gunner, "soldier", Vector3.ZERO)
+	if soldier:
+		var g: Node3D = soldier.find_child("gun", true, false)
+		if g:
+			g.visible = false
+		for n in ["arm_r", "arm_l"]:
+			var arm: Node3D = soldier.find_child(n, true, false)
+			if arm:
+				arm.rotation_degrees = Vector3(70, 0, 0)     # hands on the gun grips
+	else:
+		B.mesh(gunner, _bm(Vector3(0.45, 0.7, 0.3)), Vector3(0, 0.55, 0), M.get_mat("uniform"))
+		var head := B.mesh(gunner, SphereMesh.new(), Vector3(0, 1.1, 0), M.get_mat("gear"))
+		head.scale = Vector3(0.28, 0.28, 0.28)
+	if not MD.available("technical"):
+		B.mesh(self, _bm(Vector3(0.12, 0.12, 1.3)), Vector3(0, 2.3, 0.5), M.get_mat("gun_metal"))
+		B.mesh(self, _bm(Vector3(0.08, 0.9, 0.08)), Vector3(0, 1.8, 1.0), M.get_mat("gun_metal"))
 	gun_tip = Node3D.new()
-	gun_tip.position = Vector3(0, 2.3, -0.2)
+	gun_tip.position = Vector3(0, 2.62, -0.52) if MD.available("technical") else Vector3(0, 2.3, -0.2)
 	add_child(gun_tip)
 	_flash = B.omni(gun_tip, Vector3.ZERO, Color(1, 0.7, 0.3), 0.0, 8.0)
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(2.2, 2.4, 5.0)
+	shape.size = Vector3(2.3, 2.4, 5.0)
 	B.add_shape(self, shape, Vector3(0, 1.2, 0))
 
 
@@ -131,6 +142,6 @@ func explode() -> void:
 	fire.position = Vector3(0, 1.5, 0)
 	add_child(fire)
 	if game:
-		game.hud.hint("TECHNICAL DESTROYED", 1.5)
+		game.hud.hint("GUN TRUCK DESTROYED", 1.5)
 		game.player.add_shake(0.6)
 	destroyed.emit(self)

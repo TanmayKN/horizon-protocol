@@ -35,6 +35,25 @@ static func material_for(mat_name: String, tint: Color) -> Material:
 			return vehicle_paint(tint, 0.9 if n == "truck_paint" else -5.0)
 		"glass":
 			return M.get_mat("glass")
+		"ammo_paint":
+			return vehicle_paint(tint if tint != Color.WHITE else Color(0.32, 0.36, 0.25), -5.0)
+		"stencil":
+			return M.emissive(Color(0.95, 0.8, 0.2), 0.25)
+		"folder_red":
+			var fm := StandardMaterial3D.new()
+			fm.albedo_color = Color(0.55, 0.08, 0.06)
+			fm.roughness = 0.8
+			return fm
+		"paper":
+			var pm2 := StandardMaterial3D.new()
+			pm2.albedo_color = Color(0.92, 0.9, 0.84)
+			pm2.roughness = 0.9
+			return pm2
+		"photo":
+			var ph := StandardMaterial3D.new()
+			ph.albedo_color = Color(0.25, 0.27, 0.3)
+			ph.roughness = 0.3
+			return ph
 		"canvas":
 			var cv: StandardMaterial3D = M.tinted("concrete", Color(0.5, 0.48, 0.35)).duplicate()
 			cv.cull_mode = BaseMaterial3D.CULL_DISABLED

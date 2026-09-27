@@ -26,7 +26,7 @@ const W1_MAX := Vector3(76, 0, 100)
 const TERMINAL_POS := Vector3(50.2, 7.2, 102.6)
 const WINDOW_POS := Vector3(36.4, 3.6, 111.5)      # blown-out window on the 2nd storey
 const CATWALK_DOOR := Vector3(41, 3.6, 100)
-const RAMP_B_TOP := Vector3(47.5, 7.2, 107.5)
+const RAMP_B_TOP := Vector3(47.2, 5.4, 106.8)   # floor-2 half landing of the stairwell
 const EXIT_GATE_Z := 184.0
 
 var game
@@ -215,7 +215,7 @@ func _build_warehouse() -> void:
 		while rz < 96.0:
 			if rng.randf() < 0.8:
 				_rack(Vector3(rx, 0, rz), rack, crate)
-			rz += 4.2
+			rz += 5.0      # 1.3 m gaps between racks to walk through
 	# Pallets, drums and crates on the warehouse floor
 	for k in 10:
 		MD.place(self, "pallet", Vector3(40 + (k % 5) * 1.4, 0, 60 + floorf(k / 5.0) * 1.4), Vector3(0, rng.randf_range(-8, 8), 0))
@@ -242,21 +242,16 @@ func _build_warehouse() -> void:
 
 
 func _rack(base: Vector3, frame: Material, crate: Material) -> void:
-	var body := StaticBody3D.new()
-	body.position = base
-	add_child(body)
+	# Every post, shelf and crate has its own collider, so you can duck/crawl through the empty bays
 	for px in [-0.5, 0.5]:
 		for pz in [-1.8, 1.8]:
-			B.mesh(body, _box_mesh(Vector3(0.1, 5.0, 0.1)), Vector3(px, 2.5, pz), frame)
+			B.box(self, Vector3(0.1, 5.0, 0.1), base + Vector3(px, 2.5, pz), frame)
 	for lvl in [0.1, 1.7, 3.3]:
-		B.mesh(body, _box_mesh(Vector3(1.1, 0.1, 3.7)), Vector3(0, lvl, 0), frame)
+		B.box(self, Vector3(1.1, 0.1, 3.7), base + Vector3(0, lvl, 0), frame)
 		for k in 3:
-			if rng.randf() < 0.75:
+			if rng.randf() < (0.35 if lvl < 1.0 else 0.75):     # ground bays mostly empty: crawl through
 				var s := rng.randf_range(0.7, 1.0)
-				B.mesh(body, _box_mesh(Vector3(0.9, 1.1 * s, 1.0)), Vector3(0, lvl + 0.05 + 0.55 * s, -1.2 + k * 1.2), crate)
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(1.1, 5.0, 3.7)
-	B.add_shape(body, shape, Vector3(0, 2.5, 0))
+				B.box(self, Vector3(0.9, 1.1 * s, 1.0), base + Vector3(0, lvl + 0.05 + 0.55 * s, -1.2 + k * 1.2), crate)
 
 
 func _catwalk(a: Vector3, b: Vector3) -> void:
@@ -327,19 +322,28 @@ func _build_admin() -> void:
 				B.box(self, Vector3(1.2, 0.05, 0.25), Vector3(lx, y + 3.28, lz), lm, false)
 				yard_emissive.append(lm)
 		emergency_lights.append(B.omni(self, Vector3(44, y + 2.8, 108), Color(1, 0.08, 0.05), 0.0, 10.0))
-	# Floor slabs with the stairwell hole (x 46..49, z 108..116)
+	# Floor slabs with the stairwell hole (x 45.4..49, z 106..116)
 	for f in [1, 2]:
 		var y2: float = f * FLOOR_H - 0.15
-		B.box(self, Vector3(10, 0.3, 16), Vector3(41, y2, 108), inner)
-		B.box(self, Vector3(3, 0.3, 8), Vector3(47.5, y2, 104), inner)
-		B.box(self, Vector3(3, 0.3, 16), Vector3(50.5, y2, 108), inner)
+		B.box(self, Vector3(9.4, 0.3, 16), Vector3(40.7, y2, 108), inner)       # west
+		B.box(self, Vector3(3.6, 0.3, 6), Vector3(47.2, y2, 103), inner)        # south of the stairwell
+		B.box(self, Vector3(3, 0.3, 16), Vector3(50.5, y2, 108), inner)         # east
+		# Safety rail round the stairwell hole (gap at the top landing)
+		var rail := M.get_mat("metal")
+		B.box(self, Vector3(0.06, 1.0, 8.5), Vector3(45.4, f * FLOOR_H + 0.5, 110.25), rail)
+		B.box(self, Vector3(3.6, 1.0, 0.06), Vector3(47.2, f * FLOOR_H + 0.5, 106.0), rail)
+		B.box(self, Vector3(0.06, 1.0, 10.0), Vector3(49.0, f * FLOOR_H + 0.5, 111.0), rail)
 	B.box(self, Vector3(16.6, 0.3, 16.6), Vector3(44, 3 * FLOOR_H + 0.15, 108), con)
 	B.box(self, Vector3(16, 0.1, 16), Vector3(44, 0.05, 108), inner)
-	# Stairs (stacked switchbacks)
-	B.stairs(self, Vector3(47.5, 0, 115.6), Vector3(47.5, FLOOR_H, 108.0), 2.8, inner)
-	B.stairs(self, Vector3(47.5, FLOOR_H, 115.6), Vector3(47.5, FLOOR_H * 2, 108.0), 2.8, inner)
-	# Stairwell side wall so you can't fall off the ramps
-	B.box(self, Vector3(0.15, FLOOR_H * 3, 8), Vector3(45.9, FLOOR_H * 1.5, 112), inner)
+	# Switchback stairs: flight A climbs south to a half landing, flight B climbs back north to the next floor
+	for f in 2:
+		var y0: float = f * FLOOR_H
+		var half: float = FLOOR_H * 0.5
+		B.stairs(self, Vector3(48.1, y0, 114.8), Vector3(48.1, y0 + half, 109.2), 1.7, inner, false)
+		B.box(self, Vector3(3.6, 0.25, 3.2), Vector3(47.2, y0 + half - 0.125, 107.6), inner)          # half landing
+		B.stairs(self, Vector3(46.25, y0 + half, 109.2), Vector3(46.25, y0 + FLOOR_H, 114.8), 1.7, inner, false)
+		B.box(self, Vector3(3.6, 0.25, 1.3), Vector3(47.2, y0 + FLOOR_H - 0.125, 115.35), inner)       # top landing
+		B.box(self, Vector3(0.05, 0.9, 5.6), Vector3(47.18, y0 + half + 0.9, 112.0), M.get_mat("metal"), false)   # centre handrail
 	# Invisible blocker in the big window (removed when it blows out)
 	window_blocker = B.wall(self, Vector3(0.4, 1.8, 3.0), Vector3(a.x, FLOOR_H + 1.75, a.z + 11.5))
 
@@ -358,8 +362,8 @@ func _build_admin() -> void:
 		B.box(self, Vector3(0.5, 1.4, 0.6), Vector3(51.4, FLOOR_H + 0.7, 101 + i * 0.7), M.get_mat("metal"))
 	# Server racks + the target terminal on the top floor
 	for i in 3:
-		B.box(self, Vector3(0.7, 2.1, 1.0), Vector3(43.5 + i * 0.9, FLOOR_H * 2 + 1.05, 115.2), dark)
-		B.box(self, Vector3(0.6, 1.6, 0.02), Vector3(43.5 + i * 0.9, FLOOR_H * 2 + 1.1, 114.68), M.emissive(Color(0.2, 0.6, 1.0), 1.5), false)
+		B.box(self, Vector3(0.7, 2.1, 1.0), Vector3(40.5 + i * 0.9, FLOOR_H * 2 + 1.05, 115.2), dark)
+		B.box(self, Vector3(0.6, 1.6, 0.02), Vector3(40.5 + i * 0.9, FLOOR_H * 2 + 1.1, 114.68), M.emissive(Color(0.2, 0.6, 1.0), 1.5), false)
 	B.box(self, Vector3(2.4, 0.9, 1.0), Vector3(TERMINAL_POS.x - 0.2, FLOOR_H * 2 + 0.45, TERMINAL_POS.z - 0.6), desk)
 	terminal_screen = M.emissive(Color(0.2, 0.9, 0.4), 2.0).duplicate()
 	B.box(self, Vector3(0.9, 0.6, 0.05), Vector3(TERMINAL_POS.x - 0.2, FLOOR_H * 2 + 1.25, TERMINAL_POS.z - 0.9), terminal_screen, false)
@@ -457,22 +461,18 @@ func _build_loading_bay() -> void:
 
 
 func _truck(p: Vector3, yaw: float) -> void:
+	# Military cargo trucks (same Blender model as the escape truck), backed up to the docks
 	var body := StaticBody3D.new()
 	body.position = p
 	body.rotation_degrees.y = yaw
 	add_child(body)
-	var trailer := M.tinted("corrugated", Color(0.8, 0.8, 0.78))
-	var cab := M.tinted("rust", Color(0.2, 0.25, 0.35))
-	B.mesh(body, _box_mesh(Vector3(9.0, 3.0, 2.5)), Vector3(1.0, 2.6, 0), trailer)
-	B.mesh(body, _box_mesh(Vector3(2.4, 2.6, 2.4)), Vector3(-5.0, 1.9, 0), cab)
-	B.mesh(body, _box_mesh(Vector3(0.05, 1.0, 2.0)), Vector3(-6.21, 2.5, 0), M.get_mat("glass"))
-	for wx in [-5.0, -1.0, 3.5, 4.8]:
-		for wz in [-1.1, 1.1]:
-			var wheel := B.mesh(body, CylinderMesh.new(), Vector3(wx, 0.5, wz), M.get_mat("black"), Vector3(90, 0, 0))
-			wheel.scale = Vector3(0.5, 0.18, 0.5)
+	var tints := [Color(0.33, 0.37, 0.27), Color(0.3, 0.33, 0.28), Color(0.38, 0.36, 0.28)]
+	var tint: Color = tints[int(absf(p.z)) % tints.size()]
+	if MD.place(body, "supply_truck", Vector3(0.6, 0, 0), Vector3(0, 90, 0), Vector3.ONE, tint) == null:
+		B.mesh(body, _box_mesh(Vector3(9.0, 3.0, 2.5)), Vector3(1.0, 2.6, 0), M.tinted("uniform", tint))
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(11.4, 4.1, 2.5)
-	B.add_shape(body, shape, Vector3(0, 2.05, 0))
+	shape.size = Vector3(9.6, 3.3, 2.6)
+	B.add_shape(body, shape, Vector3(0, 1.65, 0))
 
 
 # ------------------------------------------------------------------ generators / storage
@@ -604,8 +604,8 @@ func start_blackout() -> void:
 	B.box(self, Vector3(1.8, 0.9, 0.8), Vector3(40, FLOOR_H + 0.45, 107), desk, true, Vector3(0, -35, -85))
 	var rubble := M.tinted("concrete", Color(0.5, 0.48, 0.45))
 	for i in 5:
-		B.box(self, Vector3(rng.randf_range(1.0, 2.2), rng.randf_range(0.6, 1.4), rng.randf_range(1.0, 2.0)), Vector3(47.5 + rng.randf_range(-1, 1), FLOOR_H + 0.5 + i * 0.25, 108.8 + rng.randf_range(-0.6, 0.6)), rubble, true, Vector3(rng.randf() * 40, rng.randf() * 90, rng.randf() * 40))
-	B.box(self, Vector3(3.0, 1.2, 0.8), Vector3(47.5, FLOOR_H + 0.6, 107.6), rubble)   # blocks the way down
+		B.box(self, Vector3(rng.randf_range(0.8, 1.6), rng.randf_range(0.6, 1.2), rng.randf_range(0.8, 1.6)), Vector3(46.3 + rng.randf_range(-0.4, 0.4), FLOOR_H - 0.6 + i * 0.2, 112.2 + rng.randf_range(-0.8, 0.8)), rubble, true, Vector3(rng.randf() * 40, rng.randf() * 90, rng.randf() * 40))
+	B.box(self, Vector3(1.7, 1.6, 1.4), Vector3(46.25, FLOOR_H - 0.4, 113.0), rubble)   # collapsed flight: blocks the way down
 	B.box(self, Vector3(0.2, 2.4, 2.0), Vector3(36, 1.2, 105), M.tinted("metal", Color(0.4, 0.1, 0.08)))   # locked door
 	B.box(self, Vector3(2.0, 2.4, 0.2), Vector3(45, 1.2, 100), M.tinted("metal", Color(0.4, 0.1, 0.08)))   # locked door
 

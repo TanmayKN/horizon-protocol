@@ -142,7 +142,7 @@ static func wall_openings(parent: Node, a: Vector3, b: Vector3, height: float, t
 
 
 ## A walkable ramp (invisible collider) with visual steps, rising from `bottom` to `top` (both centre points).
-static func stairs(parent: Node, bottom: Vector3, top: Vector3, width: float, material: Material) -> void:
+static func stairs(parent: Node, bottom: Vector3, top: Vector3, width: float, material: Material, solid_below := true) -> void:
 	var d := top - bottom
 	var run := Vector2(d.x, d.z).length()
 	var rise := d.y
@@ -156,8 +156,10 @@ static func stairs(parent: Node, bottom: Vector3, top: Vector3, width: float, ma
 		var top_y := (i + 1) * rise / steps
 		var z := (i + 0.5) * run / steps
 		var bm := BoxMesh.new()
-		bm.size = Vector3(width, top_y, run / steps)
-		mesh(holder, bm, Vector3(0, top_y / 2.0, z), material)
+		# solid_below = false: each step is a thick tread (so another flight can pass underneath)
+		var h := top_y if solid_below else minf(top_y, 0.4)
+		bm.size = Vector3(width, h, run / steps)
+		mesh(holder, bm, Vector3(0, top_y - h / 2.0, z), material)
 	# Smooth ramp collider along the steps
 	var body := StaticBody3D.new()
 	holder.add_child(body)

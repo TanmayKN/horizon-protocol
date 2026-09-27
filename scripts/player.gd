@@ -5,6 +5,7 @@ extends CharacterBody3D
 
 const S := preload("res://scripts/sfx.gd")
 const WeaponScript := preload("res://scripts/weapon.gd")
+const MD := preload("res://scripts/models.gd")
 
 enum Stance { STAND, CROUCH, PRONE }
 
@@ -64,6 +65,19 @@ var _mud_splash_timer := 0.0
 var _ladders: Array = []
 var _climb_step := 0.0
 
+# Third-person view (V to toggle)
+var third_person := false
+var _tp_blend := 0.0
+var body_model: Node3D
+var _b_thigh_l: Node3D
+var _b_thigh_r: Node3D
+var _b_shin_l: Node3D
+var _b_shin_r: Node3D
+var _b_torso: Node3D
+var _b_arm_r: Node3D
+var _b_arm_l: Node3D
+var _walk_phase := 0.0
+
 
 func _ready() -> void:
 	capsule = CapsuleShape3D.new()
@@ -88,13 +102,87 @@ func _ready() -> void:
 	weapon.player = self
 	camera.add_child(weapon)
 
+	_build_body()
 	_apply_stance(true)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+## Vance's full body, only shown in third person
+func _build_body() -> void:
+	body_model = MD.place(self, "soldier", Vector3.ZERO)
+	if body_model == null:
+		return
+	_b_thigh_l = body_model.find_child("thigh_l", true, false)
+	_b_thigh_r = body_model.find_child("thigh_r", true, false)
+	_b_shin_l = body_model.find_child("shin_l", true, false)
+	_b_shin_r = body_model.find_child("shin_r", true, false)
+	_b_torso = body_model.find_child("torso", true, false)
+	_b_arm_r = body_model.find_child("arm_r", true, false)
+	_b_arm_l = body_model.find_child("arm_l", true, false)
+	for g in body_model.find_children("*", "GeometryInstance3D", true, false):
+		(g as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	body_model.visible = false
+
+
+func toggle_view() -> void:
+	third_person = not third_person
+	if game:
+		game.hud.hint("THIRD PERSON" if third_person else "FIRST PERSON", 1.0)
+
+
+func _update_body(delta: float, horizontal: float) -> void:
+	if body_model == null:
+		return
+	# Third person camera: pull back over the right shoulder (aiming snaps back to first person for the sights)
+	var want := 1.0 if (third_person and not aiming and not driving and not is_dead) else 0.0
+	_tp_blend = move_toward(_tp_blend, want, delta * 4.0)
+	body_model.visible = _tp_blend > 0.02
+	weapon.visible = _tp_blend < 0.5 and not driving
+	var offset := Vector3(0.75, 0.35, 3.0) * _tp_blend
+	if _tp_blend > 0.0:
+		# Keep the camera out of walls
+		var from := head.global_position
+		var to: Vector3 = head.global_transform * offset
+		var q := PhysicsRayQueryParameters3D.create(from, to)
+		q.exclude = [get_rid()]
+		var hit := get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit.is_empty():
+			var frac: float = maxf(0.05, from.distance_to(hit.position) - 0.25) / maxf(0.01, from.distance_to(to))
+			offset *= clampf(frac, 0.0, 1.0)
+	camera.position = offset
+	if not body_model.visible:
+		return
+	# Simple procedural animation: walk cycle, crouch and prone poses, rifle held up
+	body_model.rotation.y = 0.0
+	_walk_phase += delta * horizontal * 2.2
+	var swing := sin(_walk_phase) * clampf(horizontal / 3.0, 0.0, 1.0) * 0.6
+	var crouch := 0.0
+	match stance:
+		Stance.CROUCH:
+			crouch = 1.0
+		Stance.PRONE:
+			crouch = 2.0
+	if crouch >= 2.0:
+		body_model.rotation_degrees.x = -85.0
+		body_model.position = Vector3(0, 0.25, 0.7)
+	else:
+		body_model.rotation_degrees.x = 0.0
+		body_model.position = Vector3(0, -0.38 * crouch, 0)
+	if _b_thigh_l:
+		_b_thigh_l.rotation.x = swing + crouch * 0.9 * (1.0 if crouch < 2.0 else 0.0)
+		_b_thigh_r.rotation.x = -swing + crouch * 0.4 * (1.0 if crouch < 2.0 else 0.0)
+		_b_shin_l.rotation.x = -maxf(0.0, -sin(_walk_phase)) * 0.8 - crouch * 1.1 * (1.0 if crouch < 2.0 else 0.0)
+		_b_shin_r.rotation.x = -maxf(0.0, sin(_walk_phase)) * 0.8 - crouch * 1.4 * (1.0 if crouch < 2.0 else 0.0)
+	if _b_torso:
+		_b_torso.rotation.x = -head.rotation.x * 0.5 + (0.25 if sprinting else 0.0)
+		_b_torso.rotation.z = -_lean * 0.3
 
 
 # ------------------------------------------------------------------ input
 
 func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("toggle_view") and not is_dead:
+		toggle_view()
 	if event is InputEventKey and event.pressed:
 		key_events += 1
 		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not event.is_action("ui_cancel") and not get_tree().paused:
@@ -332,6 +420,7 @@ func _update_camera(delta: float, input_dir: Vector2, horizontal: float) -> void
 	if aiming:
 		fov = weapon.ads_fov()
 	camera.fov = lerpf(camera.fov, fov, clampf(10.0 * delta, 0.0, 1.0))
+	_update_body(delta, horizontal)
 
 
 # ------------------------------------------------------------------ actions
@@ -369,15 +458,14 @@ func _apply_stance(instant: bool) -> void:
 
 
 func _play_step(extra_db: float) -> void:
-	var sound := "step_grass"
-	match surface:
-		"mud": sound = "step_mud"
-		"hard": sound = "step_hard"
-		"metal": sound = "step_metal"
+	var kind := "grass"
+	if surface in ["mud", "hard", "metal", "gravel"]:
+		kind = surface
+	var sound := "step_%s_%d" % [kind, randi() % 5]      # 5 different takes per surface so it never repeats
 	var vol: float = {Stance.STAND: -8.0, Stance.CROUCH: -14.0, Stance.PRONE: -18.0}[stance]
 	if sprinting:
 		vol = -4.0
-	S.play3d(self, sound, global_position, vol + extra_db, 0.15)
+	S.play3d(self, sound, global_position, vol + extra_db, 0.07)
 
 
 func add_recoil(pitch: float, yaw: float) -> void:
@@ -439,8 +527,8 @@ func set_carrier(node: Node3D) -> void:
 
 
 func eye_position() -> Vector3:
-	return camera.global_position
+	return head.global_position
 
 
 func aim_ray() -> Array:
-	return [camera.global_position, -camera.global_transform.basis.z]
+	return [head.global_position, -camera.global_transform.basis.z]

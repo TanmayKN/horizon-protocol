@@ -247,14 +247,12 @@ func add_mud() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if player == null or not player.controls_enabled or player.is_dead or player.driving:
 		return
-	if event is InputEventKey and event.pressed and not event.echo:
-		match (event as InputEventKey).physical_keycode:
-			KEY_1:
-				switch_to(0)
-			KEY_2:
-				switch_to(1)
-			KEY_3:
-				switch_to(2)
+	if event.is_action_pressed("weapon_1"):
+		switch_to(0)
+	elif event.is_action_pressed("weapon_2"):
+		switch_to(1)
+	elif event.is_action_pressed("weapon_3"):
+		switch_to(2)
 	elif event is InputEventMouseButton and event.pressed:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
@@ -449,7 +447,10 @@ func _fire() -> void:
 		else:
 			_impact(hit.position, hit.normal)
 	if not scoped:
-		_tracer(muzzle.global_position, end)
+		var from_pos: Vector3 = muzzle.global_position
+		if player._tp_blend > 0.5:
+			from_pos = player.head.global_position + player.global_transform.basis.x * 0.25 + fwd * 0.7
+		_tracer(from_pos, end)
 
 
 # ------------------------------------------------------------------ pick-ups

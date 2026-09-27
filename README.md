@@ -25,6 +25,7 @@ You carry three slots:
 | 3 | **Combat knife**: silent, kills in one hit up close |
 
 - Every enemy you take down **drops his gun**. Walk up to it and press **F** to take it (your old gun is dropped in its place). Kranor soldiers carry the **AK-74** (7.62), and their snipers carry a scoped **SVD marksman rifle** (.308) that zooms in when you aim.
+- Ammo pickups are floating, spinning ammo cans with a coloured glow: **green** = 5.56, **orange** = 7.62, **red** = .308, **purple** = 9mm. Intel is a red folder with a blue glow.
 - Ammo is separate for each calibre and **you have to pick it up**: soldiers drop ammo pouches, and each checkpoint has a supply cache with 5.56 and 9mm. Press F on a gun you already have to take its ammo.
 - Your M4 is suppressed, so only nearby enemies hear it. The captured guns are **loud** and alert everyone around.
 
@@ -48,7 +49,10 @@ Find the **6 hidden intel documents** and listen in on the guards' conversations
 | F | Interact (cut fences, download intel, pick up guns) |
 | W / S on a ladder | Climb up / down |
 | W / S / A / D in the truck | Accelerate / brake / steer |
-| Esc | Pause menu (difficulty, mouse sensitivity, restart) |
+| V | Switch between first and third person |
+| Esc | Pause menu (controls, difficulty, mouse sensitivity, restart) |
+
+You can change any key in **Esc → Controls**: click a key and press the new one.
 
 ## How to play it
 
