@@ -338,7 +338,10 @@ func _resume() -> void:
 	story_panel.visible = false
 	panel.visible = true
 	get_tree().paused = false
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if game and game.player:
+		game.player.capture_mouse()
+	else:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _restart() -> void:

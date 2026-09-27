@@ -104,7 +104,21 @@ func _ready() -> void:
 
 	_build_body()
 	_apply_stance(true)
+	# Don't grab the mouse yet: on macOS/Windows grabbing it before the game window is focused
+	# leaves the mouse "captured" by nothing. It is grabbed on the first click ("CLICK TO PLAY").
+
+
+func capture_mouse() -> void:
+	# Toggle through VISIBLE so the OS really re-grabs the cursor for this window
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		# Let go of the mouse when you switch apps; clicking back in grabs it again
+		if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 ## Walk up small ledges (kerbs, door sills, floor slabs) instead of getting stuck on them
@@ -206,26 +220,33 @@ func _update_body(delta: float, horizontal: float) -> void:
 # ------------------------------------------------------------------ input
 
 func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not is_dead:
+		_look(event)
+		return
 	if event.is_action_pressed("toggle_view") and not is_dead:
 		toggle_view()
 	if event is InputEventKey and event.pressed:
 		key_events += 1
-		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not event.is_action("ui_cancel") and not get_tree().paused:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED and not event.is_action("ui_cancel") and not get_tree().paused and DisplayServer.window_is_focused():
+			capture_mouse()
+
+
+func _look(event: InputEventMouseMotion) -> void:
+	var sens: float = MOUSE_SENS * ((camera.fov / 75.0) if aiming else 1.0) * (game.mouse_sens_mult if game else 1.0)   # slower when zoomed in
+	rotate_y(-event.relative.x * sens)
+	head.rotate_x(-event.relative.y * sens)
+	head.rotation.x = clampf(head.rotation.x, deg_to_rad(-86), deg_to_rad(86))
+	if weapon:
+		weapon.add_sway(event.relative)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if is_dead:
 		return
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		var sens: float = MOUSE_SENS * ((camera.fov / 75.0) if aiming else 1.0) * (game.mouse_sens_mult if game else 1.0)   # slower when zoomed in
-		rotate_y(-event.relative.x * sens)
-		head.rotate_x(-event.relative.y * sens)
-		head.rotation.x = clampf(head.rotation.x, deg_to_rad(-86), deg_to_rad(86))
-		if weapon:
-			weapon.add_sway(event.relative)
+	if event is InputEventMouseMotion:
+		pass   # handled in _input
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		capture_mouse()
 		get_viewport().set_input_as_handled()
 	elif not controls_enabled:
 		return
