@@ -16,6 +16,7 @@ const M := preload("res://scripts/mats.gd")
 const S := preload("res://scripts/sfx.gd")
 const MD := preload("res://scripts/models.gd")
 const Ladder := preload("res://scripts/world/ladder.gd")
+const PowerLines := preload("res://scripts/world/powerlines.gd")
 
 const ADMIN_MIN := Vector3(36, 0, 100)
 const ADMIN_MAX := Vector3(52, 0, 116)
@@ -191,8 +192,11 @@ func _build_warehouse() -> void:
 	B.wall_openings(self, Vector3(52, 0, b.z), Vector3(b.x, 0, b.z), h, 0.2, cor, [])
 	B.box(self, Vector3(b.x - a.x + 1, 0.3, b.z - a.z + 1), Vector3((a.x + b.x) / 2.0, h + 0.15, (a.z + b.z) / 2.0), cor)
 	# Half-open roller shutters
-	for dz in [8, 24]:
-		B.box(self, Vector3(0.1, 1.2, 6), Vector3(a.x, 4.2, a.z + dz + 3), M.get_mat("hazard"), false)
+	if MD.available("rollup_door"):
+		_warehouse_details()
+	else:
+		for dz in [8, 24]:
+			B.box(self, Vector3(0.1, 1.2, 6), Vector3(a.x, 4.2, a.z + dz + 3), M.get_mat("hazard"), false)
 	# Interior lights (die in the blackout)
 	for lx in [44.0, 56.0, 68.0]:
 		for lz in [64.0, 78.0, 92.0]:
@@ -283,6 +287,7 @@ func _build_admin() -> void:
 	var inner := M.tinted("concrete", Color(0.75, 0.74, 0.7))
 	var a := ADMIN_MIN
 	var b := ADMIN_MAX
+	var west_per_floor: Array = []
 	for f in 3:
 		var y := f * FLOOR_H
 		var west := [[1.5, 2, 1.0, 2.4], [9, 1.5, 1.0, 2.4], [13, 1.8, 1.0, 2.4]]
@@ -298,6 +303,7 @@ func _build_admin() -> void:
 				south = [[4, 2, 0, 2.4]]                                       # catwalk door
 			2:
 				west = [[3, 2, 1.0, 2.4], [10, 3, 1.0, 2.4]]
+		west_per_floor.append(west)
 		B.wall_openings(self, Vector3(a.x, y, a.z), Vector3(a.x, y, b.z), FLOOR_H, 0.3, con, west)
 		B.wall_openings(self, Vector3(b.x, y, a.z), Vector3(b.x, y, b.z), FLOOR_H, 0.3, con, east)
 		B.wall_openings(self, Vector3(a.x, y, a.z), Vector3(b.x, y, a.z), FLOOR_H, 0.3, con, south)
@@ -337,6 +343,7 @@ func _build_admin() -> void:
 	# Invisible blocker in the big window (removed when it blows out)
 	window_blocker = B.wall(self, Vector3(0.4, 1.8, 3.0), Vector3(a.x, FLOOR_H + 1.75, a.z + 11.5))
 
+	_admin_details(west_per_floor)
 	# Furniture
 	var desk := M.get_mat("wood")
 	var dark := M.get_mat("gear")
@@ -357,6 +364,77 @@ func _build_admin() -> void:
 	terminal_screen = M.emissive(Color(0.2, 0.9, 0.4), 2.0).duplicate()
 	B.box(self, Vector3(0.9, 0.6, 0.05), Vector3(TERMINAL_POS.x - 0.2, FLOOR_H * 2 + 1.25, TERMINAL_POS.z - 0.9), terminal_screen, false)
 	B.label3d(self, "KRANOR SECURE NODE\n> ENCRYPTED: RASKOV_LOGS", Vector3(TERMINAL_POS.x - 0.2, FLOOR_H * 2 + 1.25, TERMINAL_POS.z - 0.87), 10, Color(0.1, 0.2, 0.1))
+
+
+## Window frames, trims, parapet, canopy, lamps, drainpipes and rooftop plant
+func _admin_details(west_windows: Array) -> void:
+	var a := ADMIN_MIN
+	var b := ADMIN_MAX
+	var trim := M.tinted("concrete", Color(0.8, 0.8, 0.78))
+	# Horizontal concrete bands at each floor and a roof parapet
+	for f in [1, 2, 3]:
+		var y: float = f * FLOOR_H
+		B.box(self, Vector3(16.8, 0.25, 0.12), Vector3(44, y, a.z - 0.2), trim, false)
+		B.box(self, Vector3(16.8, 0.25, 0.12), Vector3(44, y, b.z + 0.2), trim, false)
+		B.box(self, Vector3(0.12, 0.25, 16.8), Vector3(a.x - 0.2, y, 108), trim, false)
+		B.box(self, Vector3(0.12, 0.25, 16.8), Vector3(b.x + 0.2, y, 108), trim, false)
+	for side in [[Vector3(44, 11.25, a.z - 0.15), Vector3(16.6, 0.7, 0.2)], [Vector3(44, 11.25, b.z + 0.15), Vector3(16.6, 0.7, 0.2)], [Vector3(a.x - 0.15, 11.25, 108), Vector3(0.2, 0.7, 16.6)], [Vector3(b.x + 0.15, 11.25, 108), Vector3(0.2, 0.7, 16.6)]]:
+		B.box(self, side[1], side[0], trim)
+	# Entrance canopy + sign over the loading-bay door
+	B.box(self, Vector3(1.6, 0.15, 3.2), Vector3(a.x - 0.8, 2.75, 105), trim)
+	B.label3d(self, "KRANOR LOGISTICS  -  ADMINISTRATION", Vector3(a.x - 0.2, 3.1, 108), 40, Color(0.9, 0.9, 0.88), Vector3(0, -90, 0))
+	# Window frames on every floor
+	if MD.available("window_frame"):
+		for f in 3:
+			var y := f * FLOOR_H
+			var west: Array = west_windows[f]
+			for w in west:
+				if w[2] > 0.0 and not (f == 1 and w[0] == 10):
+					MD.place(self, "window_frame", Vector3(a.x - 0.17, y + w[2], a.z + w[0] + w[1] / 2.0), Vector3(0, 90, 0), Vector3(w[1], w[3] - w[2], 1))
+			for w in [[3, 2, 1.0, 2.4], [8, 2, 1.0, 2.4], [12, 2, 1.0, 2.4]]:
+				MD.place(self, "window_frame", Vector3(b.x + 0.17, y + w[2], a.z + w[0] + w[1] / 2.0), Vector3(0, -90, 0), Vector3(w[1], w[3] - w[2], 1))
+			for w in [[3, 2, 1.0, 2.4], [8, 2, 1.0, 2.4]]:
+				MD.place(self, "window_frame", Vector3(a.x + w[0] + w[1] / 2.0, y + w[2], b.z + 0.17), Vector3(0, 180, 0), Vector3(w[1], w[3] - w[2], 1))
+	# Lamps over the doors (they go dark in the blackout)
+	if MD.available("wall_lamp"):
+		MD.place(self, "wall_lamp", Vector3(a.x - 0.16, 2.5, 106.8), Vector3(0, 90, 0))
+		yard_lights.append(B.omni(self, Vector3(a.x - 0.6, 2.3, 106.8), Color(1, 0.85, 0.6), 1.5, 7.0))
+		for dz in [11.0, 27.0]:
+			MD.place(self, "wall_lamp", Vector3(W1_MIN.x - 0.12, 5.4, W1_MIN.z + dz), Vector3(0, 90, 0))
+			yard_lights.append(B.omni(self, Vector3(W1_MIN.x - 0.7, 5.1, W1_MIN.z + dz), Color(1, 0.85, 0.6), 2.0, 10.0))
+	# Drainpipes at the corners
+	if MD.available("downpipe"):
+		for dp in [[Vector3(a.x - 0.1, 0, a.z + 0.4), 90.0], [Vector3(a.x - 0.1, 0, b.z - 0.4), 90.0], [Vector3(b.x + 0.1, 0, b.z - 0.4), -90.0]]:
+			var pipe := MD.place(self, "downpipe", dp[0], Vector3(0, dp[1], 0), Vector3(1, 3.6, 1))
+			if pipe == null:
+				break
+		for dz in [2.0, 42.0]:
+			MD.place(self, "downpipe", Vector3(W1_MIN.x - 0.1, 0, W1_MIN.z + dz), Vector3(0, 90, 0), Vector3(1, 3.4, 1))
+	# Rooftop air-conditioning units
+	if MD.available("hvac_unit"):
+		MD.place(self, "hvac_unit", Vector3(40, 3 * FLOOR_H + 0.3, 104), Vector3(0, 90, 0))
+		MD.place(self, "hvac_unit", Vector3(40.5, 3 * FLOOR_H + 0.3, 112), Vector3(0, 90, 0))
+		for hx in [48.0, 60.0, 70.0]:
+			MD.place(self, "hvac_unit", Vector3(hx, 10.8, 72), Vector3(0, rng.randf() * 180, 0))
+
+
+## W1 exterior: concrete plinth, roof fascia and proper roll-up doors
+func _warehouse_details() -> void:
+	var a := W1_MIN
+	var b := W1_MAX
+	var con := M.get_mat("concrete")
+	B.box(self, Vector3(0.15, 0.9, 5.5), Vector3(a.x - 0.1, 0.45, a.z + 5.2), con, false)
+	B.box(self, Vector3(0.15, 0.9, 8.0), Vector3(a.x - 0.1, 0.45, a.z + 18.0), con, false)
+	B.box(self, Vector3(0.15, 0.9, 13.5), Vector3(a.x - 0.1, 0.45, a.z + 37.2), con, false)
+	B.box(self, Vector3(b.x - a.x, 0.9, 0.15), Vector3((a.x + b.x) / 2.0, 0.45, a.z - 0.1), con, false)
+	B.box(self, Vector3(0.15, 0.9, b.z - a.z), Vector3(b.x + 0.1, 0.45, (a.z + b.z) / 2.0), con, false)
+	var fascia := M.tinted("metal", Color(0.3, 0.32, 0.34))
+	B.box(self, Vector3(0.3, 0.5, b.z - a.z + 0.6), Vector3(a.x - 0.2, 10.55, (a.z + b.z) / 2.0), fascia, false)
+	B.box(self, Vector3(b.x - a.x + 0.6, 0.5, 0.3), Vector3((a.x + b.x) / 2.0, 10.55, a.z - 0.2), fascia, false)
+	if MD.available("rollup_door"):
+		for dz in [8.0, 24.0]:
+			MD.place(self, "rollup_door", Vector3(a.x - 0.05, 3.3, a.z + dz + 3.0), Vector3(0, 90, 0), Vector3(6.0, 1.5, 1.0))
+		MD.place(self, "rollup_door", Vector3(b.x + 0.05, 2.6, a.z + 22.5), Vector3(0, -90, 0), Vector3(5.0, 1.9, 1.0))
 
 
 func _desk(p: Vector3, desk: Material, dark: Material) -> void:
@@ -415,9 +493,28 @@ func _build_generators() -> void:
 	_hum.max_distance = 90.0
 	add_child(_hum)
 	_hum.play()
-	# Transformer (blows during the ambush)
-	B.box(self, Vector3(2.5, 3.0, 2.5), Vector3(28, 1.5, 118), M.tinted("metal", Color(0.4, 0.45, 0.4)))
-	B.label3d(self, "DANGER  HIGH VOLTAGE", Vector3(28, 2.0, 116.7), 24, Color(0.95, 0.8, 0.1), Vector3(0, 180, 0))
+	# Substation: transformer inside a fenced compound (it blows during the ambush)
+	var sub := Vector3(28, 0, 121)
+	if MD.available("transformer"):
+		var tb := StaticBody3D.new()
+		tb.position = sub
+		add_child(tb)
+		MD.place(tb, "transformer", Vector3.ZERO, Vector3(0, 90, 0))
+		var ts := BoxShape3D.new()
+		ts.size = Vector3(2.4, 2.6, 3.2)
+		B.add_shape(tb, ts, Vector3(0, 1.3, 0))
+	else:
+		B.box(self, Vector3(2.5, 3.0, 2.5), sub + Vector3(0, 1.5, 0), M.tinted("metal", Color(0.4, 0.45, 0.4)))
+	B.box(self, Vector3(6.5, 0.2, 7.5), sub + Vector3(0, 0.1, 0), M.get_mat("gravel") if M.get_mat("gravel") else M.get_mat("concrete"), false)
+	var link := M.get_mat("chainlink")
+	for fence in [[Vector3(-3.2, 1.25, 0), Vector3(0.04, 2.5, 7.4)], [Vector3(3.2, 1.25, 0), Vector3(0.04, 2.5, 7.4)], [Vector3(0, 1.25, 3.7), Vector3(6.4, 2.5, 0.04)], [Vector3(-2.0, 1.25, -3.7), Vector3(2.4, 2.5, 0.04)], [Vector3(2.0, 1.25, -3.7), Vector3(2.4, 2.5, 0.04)]]:
+		B.box(self, fence[1], sub + fence[0], link)
+	for c in [Vector3(-3.2, 0, -3.7), Vector3(3.2, 0, -3.7), Vector3(-3.2, 0, 3.7), Vector3(3.2, 0, 3.7)]:
+		B.cyl(self, 0.05, 0.05, 2.7, sub + c + Vector3(0, 1.35, 0), M.get_mat("metal"), false, Vector3.ZERO, 6)
+	B.label3d(self, "DANGER  -  HIGH VOLTAGE\nKEEP OUT", sub + Vector3(0, 1.8, -3.75), 28, Color(0.95, 0.8, 0.1), Vector3(0, 180, 0))
+	# Overhead line feeding the substation from the valley
+	if MD.available("power_pole"):
+		PowerLines.build(self, [Vector3(6, 0, 44), Vector3(6, 0, 72), Vector3(6, 0, 100), Vector3(12, 0, 124), Vector3(23, 0, 124)])
 	# Storage warehouse W2
 	var cor := M.tinted("corrugated", Color(0.55, 0.5, 0.45))
 	B.wall_openings(self, Vector3(-66, 0, 134), Vector3(-36, 0, 134), 8, 0.2, cor, [[12, 6, 0, 4.5]])

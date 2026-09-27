@@ -30,6 +30,7 @@ var key_events := 0
 
 var controls_enabled := true  # false during scripted moments
 var move_enabled := true      # false while riding the truck (can still look + shoot)
+var driving := false          # true while Vance drives the truck (no shooting)
 var carrier: Node3D = null    # when set, Vance rides along with this node (the truck bed)
 var _carrier_yaw := 0.0
 var health := MAX_HEALTH

@@ -29,6 +29,12 @@ var _engine: AudioStreamPlayer3D
 var _river: AudioStreamPlayer3D
 var _roadblock_nodes: Array = []
 var _leap_t := -1.0
+var player_driving := false
+var lateral := 0.0
+var driver_anchor: Node3D
+var obstacles: Array = []     # [distance, lateral, node, done]
+var _reyes_fire := 3.0
+var _speed_hint := 0.0
 var _leap_from := Vector3.ZERO
 var rng := RandomNumberGenerator.new()
 
@@ -406,6 +412,9 @@ func _build_truck() -> void:
 	bed_anchor = Node3D.new()
 	bed_anchor.position = Vector3(0.2, 1.2, 2.4)
 	truck.add_child(bed_anchor)
+	driver_anchor = Node3D.new()
+	driver_anchor.position = Vector3(-0.5, 1.6, -2.3)
+	truck.add_child(driver_anchor)
 	_engine = AudioStreamPlayer3D.new()
 	_engine.stream = S.get_stream("engine")
 	_engine.volume_db = -6.0
@@ -417,6 +426,9 @@ func _build_truck() -> void:
 
 ## Driver, lights, bed anchor and engine sound (shared by both truck versions)
 func _truck_extras() -> void:
+	driver_anchor = Node3D.new()
+	driver_anchor.position = Vector3(-0.5, 0.98, -2.05)
+	truck.add_child(driver_anchor)
 	B.mesh(truck, _bm(Vector3(0.5, 0.7, 0.4)), Vector3(-0.5, 2.25, -2.2), M.get_mat("uniform"))
 	var hd := B.mesh(truck, SphereMesh.new(), Vector3(-0.5, 2.8, -2.2), M.get_mat("gear"))
 	hd.scale = Vector3(0.25, 0.25, 0.25)
@@ -455,10 +467,91 @@ func start(leap_from: Vector3) -> void:
 	_place_truck()
 
 
+## Reyes is hit: Vance takes the wheel for the rest of the pass
+func start_player_drive() -> void:
+	if driver_anchor == null:
+		return
+	player_driving = true
+	var p = game.player
+	p.set_carrier(driver_anchor)
+	p.stance = 0
+	p._apply_stance(true)
+	p.rotation.y = truck.global_rotation.y
+	p.head.rotation.x = 0.0
+	p.driving = true
+	p.weapon.visible = false
+	game.hud.hint("YOU'RE DRIVING  -  W accelerate  |  S brake  |  A / D steer.  Dodge the rocks!", 6.0)
+	# Rockfall and debris ahead on the road
+	var M2 := M.get_mat("rock")
+	var d := s + 60.0
+	while d < s_roadblock - 50.0:
+		var lat: float = [-2.2, 0.0, 2.2].pick_random() + randf_range(-0.4, 0.4)
+		var p0 := pos_at(d)
+		var f := dir_at(d)
+		var left := Vector3.UP.cross(f).normalized()
+		var holder := Node3D.new()
+		add_child(holder)
+		holder.global_position = p0 + left * lat
+		for k in 3:
+			var r := B.mesh(holder, SphereMesh.new(), Vector3(randf_range(-0.6, 0.6), 0.35, randf_range(-0.5, 0.5)), M2)
+			r.scale = Vector3.ONE * randf_range(0.8, 1.4)
+		obstacles.append([d, lat, holder, false])
+		d += randf_range(40.0, 60.0)
+
+
+func _drive(delta: float) -> void:
+	var iv := Input.get_vector("move_left", "move_right", "move_forward", "move_back") if game.player.controls_enabled else Vector2.ZERO
+	var ts := 12.0
+	if iv.y < -0.1:
+		ts = 23.0
+	elif iv.y > 0.1:
+		ts = 3.0
+	speed = move_toward(speed, ts, delta * (6.0 if ts > speed else 12.0))
+	var limit := ROAD_W / 2.0 - 1.3
+	lateral = clampf(lateral + iv.x * delta * 4.5 * clampf(speed / 10.0, 0.3, 1.2), -limit, limit)
+	_speed_hint -= delta
+	if _speed_hint <= 0.0:
+		_speed_hint = 0.25
+		game.hud.prompt("SPEED  %d km/h" % int(speed * 3.6))
+	for o in obstacles:
+		if not o[3] and s >= o[0]:
+			o[3] = true
+			if absf(lateral - o[1]) < 1.9:
+				speed *= 0.25
+				game.player.add_shake(2.0)
+				game.player.take_damage(8.0, truck.global_position)
+				S.play3d(self, "impact", truck.global_position, 8.0)
+				game.hud.hint("CRASHED INTO THE ROCKS!", 1.5)
+			var n: Node3D = o[2]
+			var tw := n.create_tween()
+			tw.tween_property(n, "global_position", n.global_position + Vector3(randf_range(-2, 2), -3.0, 0), 0.6)
+	# Reyes covers the back while Vance drives
+	_reyes_fire -= delta
+	if _reyes_fire <= 0.0:
+		_reyes_fire = randf_range(2.5, 4.5)
+		for t in techs:
+			if is_instance_valid(t) and not t.dead:
+				S.play3d(self, "rifle", truck.global_position, 0.0)
+				if randf() < 0.45:
+					t.take_hit(70.0, t.global_position + Vector3(0, 1.2, 0), Vector3.ZERO)
+				break
+
+
 func _physics_process(delta: float) -> void:
 	if not active:
 		return
 	var p = game.player
+	if player_driving:
+		_drive(delta)
+		if s < s_end:
+			s += speed * delta
+		_place_truck()
+		for e in events:
+			if not e[2] and s >= e[0]:
+				e[2] = true
+				_event(e[1])
+		_update_techs(delta, p)
+		return
 	# Speed profile
 	var ts := target_speed
 	if s < s_gate + 5.0:
@@ -509,7 +602,10 @@ func _physics_process(delta: float) -> void:
 			tw.tween_property(br, "position:y", br.position.y - 6.0, 0.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 			tw.parallel().tween_property(br, "rotation:z", 1.2, 0.6)
 			p.add_shake(0.4)
-	# Pursuers
+	_update_techs(delta, p)
+
+
+func _update_techs(delta: float, p) -> void:
 	for t in techs:
 		if not is_instance_valid(t):
 			continue
@@ -532,6 +628,8 @@ func _place_truck() -> void:
 	var pos := pos_at(s)
 	var f := dir_at(s)
 	_bounce_t += get_physics_process_delta_time() * speed
+	if player_driving:
+		pos += Vector3.UP.cross(f).normalized() * lateral
 	truck.global_position = pos + Vector3(0, sin(_bounce_t * 1.3) * 0.05 + sin(_bounce_t * 3.1) * 0.02, 0)
 	truck.look_at(truck.global_position + f, Vector3.UP)
 	truck.rotate_object_local(Vector3.FORWARD, sin(_bounce_t * 0.9) * 0.02)
@@ -570,6 +668,11 @@ func _event(name: String) -> void:
 				tw.parallel().tween_property(n, "rotation", Vector3(randf() * 3, randf() * 3, randf() * 3), 0.5)
 		"crash":
 			active = false
+			if player_driving:
+				player_driving = false
+				game.player.driving = false
+				game.player.weapon.visible = true
+				game.hud.prompt("")
 			speed = 0.0
 			_engine.stop()
 			S.play3d(self, "explosion", truck.global_position, 6.0)
@@ -597,7 +700,7 @@ func rewind() -> void:
 		if e[0] > s:
 			e[2] = false
 	var p = game.player
-	p.set_carrier(bed_anchor)
+	p.set_carrier(driver_anchor if player_driving else bed_anchor)
 	p.controls_enabled = true
 
 

@@ -173,7 +173,7 @@ func _process(delta: float) -> void:
 	if player == null:
 		return
 	_cooldown -= delta
-	var can_act: bool = player.controls_enabled and not player.is_dead
+	var can_act: bool = player.controls_enabled and not player.is_dead and not player.driving
 
 	# Reload
 	if reloading:

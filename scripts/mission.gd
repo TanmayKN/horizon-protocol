@@ -511,7 +511,8 @@ func on_seg4_event(name: String) -> void:
 			say(OVERWATCH, "Bridge coming up. It's older than both of us. Hang on!", 0.0, true)
 		"techs2":
 			say(OVERWATCH, "Two more coming up fast behind us!", 0.0, true)
-			say(OVERWATCH, "Argh! I'm hit... I'm okay, I can still drive! Keep them off us!", 2.5)
+			say(OVERWATCH, "Argh! I'm hit... I can't hold the wheel! Vance, get up here and DRIVE! I'll cover the back!", 2.5)
+			get_tree().create_timer(7.0).timeout.connect(_take_wheel)
 			say("Raskov (intercept)", "All units: stop that truck. I don't care what it costs.", 1.0)
 		"tunnel":
 			say(OVERWATCH, "Tunnel's collapsed! Taking the old service road around it!", 0.0, true)
@@ -529,6 +530,14 @@ func on_seg4_event(name: String) -> void:
 			say(OVERWATCH, "Bunker gate! BRACE!", 0.0, true)
 		"crash":
 			_go("s5_enter")
+
+
+func _take_wheel() -> void:
+	if not step.begins_with("s4") or game.seg4.player_driving or not game.seg4.active:
+		return
+	game.seg4.start_player_drive()
+	game.hud.set_objective("Drive the truck to Raskov's bunker  -  dodge the rockfall")
+	say(VANCE, "I've got the wheel! Hold on, Reyes!", 0.2, true)
 
 
 func _spawn_segment5() -> void:

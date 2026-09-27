@@ -32,9 +32,32 @@ static func material_for(mat_name: String, tint: Color) -> Material:
 		"tail_light":
 			return M.emissive(Color(1, 0.08, 0.05), 3.0)
 		"truck_paint", "heli_paint":
-			return M.tinted("metal", tint)
+			return vehicle_paint(tint, 0.9 if n == "truck_paint" else -5.0)
 		"glass":
 			return M.get_mat("glass")
+		"transformer_paint":
+			return vehicle_paint(Color(0.4, 0.45, 0.42), -5.0)
+		"hvac_paint":
+			return vehicle_paint(Color(0.72, 0.73, 0.7), -5.0)
+		"door_paint":
+			return M.tinted("corrugated", Color(0.62, 0.64, 0.62))
+		"frame":
+			return M.tinted("metal", Color(0.5, 0.52, 0.55))
+		"porcelain":
+			var pm := StandardMaterial3D.new()
+			pm.albedo_color = Color(0.42, 0.26, 0.16)
+			pm.roughness = 0.15
+			return pm
+		"copper":
+			var cm := StandardMaterial3D.new()
+			cm.albedo_color = Color(0.72, 0.42, 0.24)
+			cm.metallic = 0.9
+			cm.roughness = 0.35
+			return cm
+		"pole_wood":
+			return M.tinted("log", Color(0.55, 0.45, 0.36))
+		"hazard_sign":
+			return M.get_mat("hazard")
 		"uniform":
 			return M.get_mat("uniform")
 		"coat":
@@ -60,6 +83,24 @@ static func material_for(mat_name: String, tint: Color) -> Material:
 		"metal", "rust", "gun_metal", "gun_polymer", "gear", "black", "wood", "concrete", "bark", "log":
 			return M.get_mat(n)
 	return M.get_mat("metal")
+
+
+static var _paints := {}
+
+
+## Matte military paint with worn edges and mud on the lower body
+static func vehicle_paint(tint: Color, mud_height: float) -> Material:
+	var key := "%s_%f" % [tint.to_html(), mud_height]
+	if _paints.has(key):
+		return _paints[key]
+	var sm := ShaderMaterial.new()
+	sm.shader = load("res://shaders/vehicle.gdshader")
+	sm.set_shader_parameter("paint", tint)
+	sm.set_shader_parameter("grime", M.tex("painted_metal_albedo"))
+	sm.set_shader_parameter("grime_n", M.tex("painted_metal_normal"))
+	sm.set_shader_parameter("mud_height", mud_height)
+	_paints[key] = sm
+	return sm
 
 
 ## Instance a model. `tint` colours painted parts (containers, drums).

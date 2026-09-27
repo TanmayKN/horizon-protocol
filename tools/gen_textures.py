@@ -250,13 +250,13 @@ def asphalt():
 
 def painted_metal():
     base = fnoise(S, S, 2.2, 71)
-    rust_mask = np.clip((band(S, S, 0.002, 0.015, 72) * 0.65 + band(S, S, 0.02, 0.1, 73) * 0.35 - 0.56) * 6, 0, 1)
+    rust_mask = np.clip((band(S, S, 0.002, 0.015, 72) * 0.65 + band(S, S, 0.02, 0.1, 73) * 0.35 - 0.68) * 5, 0, 1) * 0.7
     streaks = np.clip((band(S, S, 0.006, 0.05, 74, aniso=(1.0, 0.06)) - 0.5) * 3, 0, 1)
     paint = lerp(col(205, 205, 200), col(235, 235, 230), base)        # light grey: tinted per object
-    rust = lerp(col(90, 48, 26), col(150, 80, 40), band(S, S, 0.05, 0.3, 75))
+    rust = lerp(col(150, 110, 80), col(190, 140, 100), band(S, S, 0.05, 0.3, 75))
     alb = lerp(paint, rust, rust_mask)
-    alb = lerp(alb, col(120, 70, 40), streaks * 0.5)
-    scratches, _ = scatter_lines(S, S, 400, 30, 1, 76, color_var=0)
+    alb = lerp(alb, col(170, 150, 130), streaks * 0.35)
+    scratches, _ = scatter_lines(S, S, 120, 30, 1, 76, color_var=0)
     alb = lerp(alb, col(170, 170, 170), scratches * 0.5)
     hgt = rust_mask * 0.5 + band(S, S, 0.1, 0.4, 77) * rust_mask * 0.4
     rough = 0.45 + rust_mask * 0.45

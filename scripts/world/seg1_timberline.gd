@@ -8,6 +8,7 @@ const S := preload("res://scripts/sfx.gd")
 const Shootable := preload("res://scripts/world/shootable.gd")
 const MD := preload("res://scripts/models.gd")
 const Ladder := preload("res://scripts/world/ladder.gd")
+const PowerLines := preload("res://scripts/world/powerlines.gd")
 
 const TOWER_POS := Vector3(0, 0, 18)
 const WIRE_POS := Vector3(0, 0, -30)
@@ -579,6 +580,15 @@ func _build_props() -> void:
 		B.box(self, Vector3(8.5, 0.12, 0.7), Vector3(brx, bry, brz - 3.0 + k * 0.72), M.get_mat("wood"))
 	for side in [-1.0, 1.0]:
 		B.box(self, Vector3(0.25, 0.25, 7.0), Vector3(brx + side * 4.0, bry + 0.6, brz), M.get_mat("log"), false)
+	# Power line running down the slope beside the access road into the yard
+	if MD.available("power_pole"):
+		var pts: Array = []
+		for pz in [-104.0, -80.0, -56.0, -32.0, -8.0, 14.0, 34.0]:
+			var px: float = terrain.road_x_at(pz) + 8.5
+			if pz > -40.0 and pz < -24.0:
+				px += 2.0    # clear of the fence line
+			pts.append(Vector3(px, h(px, pz) - 0.3, pz))
+		PowerLines.build(self, pts)
 	# Pallets and crates by the sawmill
 	for k in 5:
 		MD.place(self, "pallet", Vector3(-20 + k * 1.3, 0.0, 14 + (k % 2) * 1.3), Vector3(0, rng.randf_range(-10, 10), 0))

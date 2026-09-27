@@ -40,13 +40,13 @@ def _finish(obj, material, bevel=0.0, segments=2):
     return obj
 
 
-def box(name, size, loc, material, bevel=0.0, rot=(0, 0, 0)):
+def box(name, size, loc, material, bevel=0.0, rot=(0, 0, 0), segs=2):
     bpy.ops.mesh.primitive_cube_add(size=1, location=loc, rotation=[math.radians(r) for r in rot])
     o = bpy.context.active_object
     o.name = name
     o.scale = size
     bpy.ops.object.transform_apply(scale=True)
-    return _finish(o, material, bevel)
+    return _finish(o, material, bevel, segs)
 
 
 def cyl(name, r, depth, loc, material, rot=(0, 0, 0), verts=16, bevel=0.0, r2=None):
@@ -515,8 +515,9 @@ def _soldier(officer=False):
     U = "coat" if officer else "uniform"
     parts = {}
     # --- pelvis
-    objs = [box("hips", (0.34, 0.22, 0.2), (0, 0, 0.94), U, 0.05)]
-    objs.append(box("belt", (0.37, 0.25, 0.06), (0, 0, 1.0), "gear", 0.015))
+    objs = [box("hips", (0.34, 0.22, 0.2), (0, 0, 0.94), U, 0.07, segs=4)]
+    objs.append(box("belt", (0.37, 0.25, 0.06), (0, 0, 1.0), "gear", 0.02, segs=3))
+    objs.append(box("buckle", (0.06, 0.02, 0.045), (0, 0.13, 1.0), "gun_metal", 0.005))
     if not officer:
         for x in (-0.14, 0.14):
             objs.append(box("hip_pouch", (0.07, 0.1, 0.12), (x, -0.12, 0.95), "gear", 0.015))
@@ -531,17 +532,21 @@ def _soldier(officer=False):
     for side, sx in (("l", -0.1), ("r", 0.1)):
         th = [_between("thigh", (sx, 0, 0.93), (sx, 0.02, 0.5), 0.09, 0.07, U)]
         if not officer:
-            th.append(box("cargo", (0.04, 0.12, 0.14), (sx * 1.9, 0.02, 0.7), U, 0.02))
+            th.append(box("cargo", (0.04, 0.13, 0.15), (sx * 1.85, 0.02, 0.7), U, 0.02, segs=3))
+            if side == "r":
+                th.append(box("holster", (0.05, 0.1, 0.16), (sx * 1.9, -0.02, 0.84), "gear", 0.02, segs=3))
+                th.append(box("pistol", (0.03, 0.09, 0.05), (sx * 1.9, 0.0, 0.94), "gun_metal", 0.008))
         thigh = _join("thigh_" + side, th, (sx, 0, 0.92))
         sh = [_between("shin", (sx, 0.02, 0.5), (sx, 0, 0.12), 0.066, 0.05, U)]
-        sh.append(box("knee_pad", (0.11, 0.05, 0.12), (sx, 0.08, 0.5), "gear", 0.025))
-        sh.append(box("boot", (0.12, 0.28, 0.13), (sx, 0.04, 0.065), "boot", 0.04))
-        sh.append(box("boot_top", (0.11, 0.13, 0.12), (sx, 0, 0.17), "boot", 0.03))
+        sh.append(box("knee_pad", (0.115, 0.06, 0.13), (sx, 0.075, 0.5), "gear", 0.03, segs=3))
+        sh.append(box("sole", (0.125, 0.29, 0.035), (sx, 0.045, 0.018), "black", 0.012, segs=2))
+        sh.append(box("boot", (0.115, 0.27, 0.1), (sx, 0.04, 0.085), "boot", 0.045, segs=4))
+        sh.append(box("boot_top", (0.11, 0.13, 0.13), (sx, 0, 0.19), "boot", 0.04, segs=3))
         shin = _join("shin_" + side, sh, (sx, 0.02, 0.5))
         _parent(thigh, pelvis)
         _parent(shin, thigh)
     # --- torso
-    t = [_between("chest", (0, 0, 0.98), (0, 0, 1.46), 0.16, 0.2, U, verts=16)]
+    t = [_between("chest", (0, 0, 0.98), (0, 0, 1.46), 0.17, 0.21, U, verts=20)]
     t[0].scale = (1.15, 0.75, 1.0)
     bpy.context.view_layer.objects.active = t[0]
     bpy.ops.object.transform_apply(scale=True)
@@ -560,9 +565,16 @@ def _soldier(officer=False):
             t.append(cyl("button", 0.012, 0.01, (0.05, 0.17, 1.1 + i * 0.09), "metal", rot=(90, 0, 0), verts=8))
         t.append(box("holster", (0.06, 0.12, 0.16), (0.2, 0, 1.0), "gear", 0.02))
     else:
-        t.append(box("plate_carrier", (0.4, 0.29, 0.36), (0, 0, 1.22), "gear", 0.03))
+        t.append(box("plate_carrier", (0.41, 0.3, 0.37), (0, 0, 1.22), "gear", 0.06, segs=4))
+        t.append(box("cummerbund", (0.44, 0.26, 0.12), (0, 0, 1.08), "gear", 0.04, segs=3))
         for i, x in enumerate((-0.12, 0.0, 0.12)):
-            t.append(box("mag_pouch", (0.09, 0.06, 0.14), (x, 0.17, 1.14), "gear_light", 0.015))
+            t.append(box("mag_pouch", (0.09, 0.065, 0.14), (x, 0.175, 1.13), "gear_light", 0.025, segs=3))
+            t.append(box("pouch_flap", (0.092, 0.07, 0.03), (x, 0.178, 1.2), "gear", 0.01))
+        t.append(box("admin_pouch", (0.2, 0.05, 0.1), (0, 0.17, 1.3), "gear_light", 0.02, segs=3))
+        t.append(box("name_tape", (0.12, 0.005, 0.03), (0, 0.2, 1.36), "patch"))
+        for x in (-0.19, 0.19):
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=0.045, segments=10, ring_count=6, location=(x, 0.1, 1.1))
+            t.append(_finish(bpy.context.active_object, "gun_metal"))   # grenades
         t.append(box("radio", (0.08, 0.06, 0.16), (-0.2, -0.06, 1.2), "gear", 0.015))
         t.append(cyl("antenna", 0.006, 0.55, (-0.2, -0.08, 1.55), "gun_metal", verts=6))
         t.append(box("backpack", (0.3, 0.15, 0.4), (0, -0.2, 1.22), "gear_light", 0.04))
@@ -575,6 +587,7 @@ def _soldier(officer=False):
     # --- head
     h = [_between("neck", (0, 0, 1.46), (0, 0.01, 1.56), 0.055, 0.05, "balaclava")]
     h.append(_ball("head", (0, 0.015, 1.64), (0.095, 0.11, 0.12), "balaclava"))
+    h.append(box("eye_slit", (0.13, 0.03, 0.035), (0, 0.105, 1.655), "black", 0.012))
     if officer:
         h.append(_ball("face", (0, 0.03, 1.63), (0.085, 0.1, 0.105), "skin"))
         bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, segments=16, ring_count=8, location=(0.02, 0.0, 1.73))
@@ -609,8 +622,10 @@ def _soldier(officer=False):
     # --- arms in a rifle-ready pose (right arm is a separate joint for hand signals)
     for side, sh_p, el_p, ha_p in (("r", (0.21, 0, 1.4), (0.24, 0.14, 1.16), (0.07, 0.3, 1.18)),
                                    ("l", (-0.21, 0, 1.4), (-0.2, 0.22, 1.2), (0.0, 0.5, 1.24))):
-        a = [_between("upper", sh_p, el_p, 0.065, 0.055, U), _between("fore", el_p, ha_p, 0.052, 0.045, U)]
-        a.append(_ball("glove", ha_p, (0.05, 0.06, 0.045), "glove"))
+        a = [_between("upper", sh_p, el_p, 0.07, 0.058, U), _between("fore", el_p, ha_p, 0.056, 0.046, U)]
+        a.append(_ball("glove", ha_p, (0.052, 0.065, 0.045), "glove"))
+        a.append(_ball("thumb", (ha_p[0] + 0.03, ha_p[1] + 0.02, ha_p[2] + 0.02), (0.018, 0.035, 0.018), "glove", segs=8))
+        a.append(_ball("elbow_pad", el_p, (0.07, 0.06, 0.06), "gear", segs=10))
         if not officer:
             a.append(box("shoulder_pad", (0.1, 0.1, 0.05), (sh_p[0] * 1.05, 0, sh_p[2] + 0.02), "gear", 0.02))
         arm = _join("arm_" + side, a, sh_p)
@@ -662,7 +677,134 @@ def raskov():
     _export_rig("raskov")
 
 
-ALL = ["soldier", "raskov", "supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree"]
+# ---------------------------------------------------------------- electrical
+
+def _insulator(x, y, z, rings=5, r=0.09, material="porcelain"):
+    for i in range(rings):
+        cyl("ins_disc", r, 0.03, (x, y, z + i * 0.07), material, verts=14, bevel=0.01)
+        cyl("ins_core", r * 0.35, 0.07, (x, y, z + i * 0.07 + 0.035), material, verts=10)
+
+
+def transformer():
+    """Substation power transformer with radiator fins, bushings and a conservator tank (origin at ground)."""
+    reset()
+    T = "transformer_paint"
+    box("skid", (3.2, 2.2, 0.25), (0, 0, 0.125), "gun_metal", 0.02)
+    box("tank", (2.6, 1.7, 2.1), (0, 0, 1.3), T, 0.04, segs=3)
+    box("tank_lid", (2.75, 1.85, 0.12), (0, 0, 2.41), T, 0.03)
+    # Radiator fin banks on both long sides
+    for sy in (-1, 1):
+        for i in range(14):
+            x = -1.1 + i * 0.17
+            box("fin", (0.03, 0.45, 1.7), (x, sy * 1.12, 1.3), T)
+        box("fin_header_top", (2.4, 0.12, 0.1), (0, sy * 1.12, 2.2), T)
+        box("fin_header_bot", (2.4, 0.12, 0.1), (0, sy * 1.12, 0.42), T)
+    # Conservator (oil expansion) tank on legs
+    cyl("conservator", 0.28, 2.2, (0.2, 0.55, 3.1), T, rot=(0, 90, 0), verts=20, bevel=0.02)
+    for x in (-0.6, 1.0):
+        box("cons_leg", (0.08, 0.08, 0.55), (x, 0.55, 2.7), "gun_metal")
+    cyl("breather", 0.05, 0.4, (-0.95, 0.55, 3.35), "rust", verts=10)
+    # HV bushings (tall ribbed insulators) and LV bushings
+    for i, x in enumerate((-0.8, 0.0, 0.8)):
+        cyl("hv_base", 0.12, 0.2, (x, -0.35, 2.55), "gun_metal", verts=12)
+        _insulator(x, -0.35, 2.66, rings=9, r=0.1)
+        cyl("hv_cap", 0.06, 0.12, (x, -0.35, 3.35), "copper", verts=10)
+    for x in (-0.5, 0.0, 0.5):
+        _insulator(x, 0.25, 2.5, rings=3, r=0.07)
+    box("cable_box", (0.9, 0.4, 0.8), (1.0, -0.95, 1.2), T, 0.03)
+    box("rating_plate", (0.4, 0.01, 0.28), (-0.6, -0.86, 1.6), "metal")
+    box("warning", (0.3, 0.01, 0.3), (0.4, -0.86, 1.6), "hazard_sign", rot=(0, 45, 0))
+    for sx in (-1.4, 1.4):
+        box("ground_rod", (0.04, 0.04, 0.6), (sx, -1.0, 0.3), "copper")
+    export("transformer")
+
+
+def power_pole():
+    """Wooden utility pole with crossarm and three pin insulators. Wire points at (+-1.05, 0, 9.05) and (0, 0, 9.35)."""
+    reset()
+    cyl("pole", 0.13, 9.6, (0, 0, 4.8), "pole_wood", verts=12, r2=0.1)
+    box("crossarm", (2.4, 0.1, 0.12), (0, 0, 8.8), "pole_wood", 0.01)
+    for sx in (-1, 1):
+        box("brace", (0.05, 0.05, 0.9), (sx * 0.4, 0.07, 8.45), "gun_metal", rot=(0, sx * 35, 0))
+    for x, z in ((-1.05, 8.86), (1.05, 8.86), (0.0, 9.15)):
+        cyl("pin", 0.015, 0.12, (x, 0, z), "gun_metal", verts=6)
+        _insulator(x, 0, z + 0.05, rings=2, r=0.055)
+    cyl("cap", 0.1, 0.05, (0, 0, 9.62), "gun_metal", verts=10)
+    for i in range(12):
+        box("step_bolt", (0.14, 0.02, 0.02), (0, 0, 2.5 + i * 0.45), "gun_metal", rot=(0, 0, 90 if i % 2 else 0))
+    box("tag", (0.1, 0.01, 0.14), (0, 0.12, 1.8), "metal")
+    export("power_pole")
+
+
+# ---------------------------------------------------------------- building kit
+
+def rollup_door():
+    """Segmented roll-up door, 1 x 1 m unit (scale it to the opening). Faces +Y."""
+    reset()
+    n = 10
+    for i in range(n):
+        box("panel", (1.0, 0.03, 1.0 / n - 0.004), (0, 0, (i + 0.5) / n), "door_paint", 0.004)
+        box("rib", (1.0, 0.045, 0.006), (0, 0.005, i / n), "door_paint")
+    box("bottom_seal", (1.0, 0.05, 0.02), (0, 0, 0.01), "black")
+    box("handle", (0.08, 0.04, 0.02), (0.3, 0.03, 0.12), "metal")
+    export("rollup_door")
+
+
+def window_frame():
+    """Aluminium window frame with a mullion and a concrete sill, 1 x 1 m unit, faces +Y."""
+    reset()
+    t = 0.05
+    box("top", (1.0, 0.08, t), (0, 0, 1.0 - t / 2), "frame")
+    box("bot", (1.0, 0.08, t), (0, 0, t / 2), "frame")
+    box("left", (t, 0.08, 1.0), (-0.5 + t / 2, 0, 0.5), "frame")
+    box("right", (t, 0.08, 1.0), (0.5 - t / 2, 0, 0.5), "frame")
+    box("mullion", (0.035, 0.07, 1.0), (0, 0, 0.5), "frame")
+    box("transom", (1.0, 0.07, 0.035), (0, 0, 0.68), "frame")
+    box("sill", (1.12, 0.2, 0.06), (0, 0.06, -0.03), "concrete", 0.01)
+    export("window_frame")
+
+
+def hvac_unit():
+    """Rooftop air-conditioning unit with fan grilles."""
+    reset()
+    box("case", (2.2, 1.3, 1.1), (0, 0, 0.55), "hvac_paint", 0.03)
+    box("base", (2.3, 1.4, 0.1), (0, 0, 0.05), "gun_metal")
+    for x in (-0.5, 0.5):
+        cyl("fan_ring", 0.42, 0.06, (x, 0, 1.12), "gun_metal", verts=24)
+        cyl("fan_hole", 0.38, 0.07, (x, 0, 1.12), "black", verts=24)
+        for k in range(6):
+            box("grille", (0.8, 0.02, 0.02), (x, 0, 1.15), "metal", rot=(0, 0, k * 30))
+    for i in range(14):
+        box("louvre", (0.02, 1.32, 0.6), (-1.0 + i * 0.15, 0, 0.5), "gun_metal")
+    cyl("duct", 0.15, 0.8, (1.2, 0, 0.3), "metal", rot=(0, 90, 0), verts=12)
+    export("hvac_unit")
+
+
+def wall_lamp():
+    """Industrial caged wall lamp, mounts on a wall (faces +Y, lamp hangs forward)."""
+    reset()
+    box("plate", (0.16, 0.03, 0.22), (0, 0, 0), "gun_metal", 0.01)
+    box("arm", (0.04, 0.3, 0.04), (0, 0.15, 0.05), "gun_metal")
+    cyl("shade", 0.18, 0.1, (0, 0.32, 0.02), "gun_metal", verts=16, r2=0.06)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.1, segments=12, ring_count=8, location=(0, 0.32, -0.06))
+    _finish(bpy.context.active_object, "lamp_glass")
+    for k in range(4):
+        box("cage", (0.012, 0.012, 0.16), (math.cos(k * math.pi / 2) * 0.11, 0.32 + math.sin(k * math.pi / 2) * 0.11, -0.07), "gun_metal")
+    export("wall_lamp")
+
+
+def downpipe():
+    """3 m drain pipe with brackets and a gutter hopper, faces +Y (mount on a wall)."""
+    reset()
+    cyl("pipe", 0.05, 3.0, (0, 0.1, 1.5), "metal", verts=10)
+    cyl("shoe", 0.05, 0.2, (0, 0.18, 0.05), "metal", rot=(60, 0, 0), verts=10)
+    box("hopper", (0.2, 0.18, 0.18), (0, 0.1, 3.05), "metal", 0.01)
+    for z in (0.6, 1.5, 2.4):
+        box("bracket", (0.14, 0.12, 0.03), (0, 0.06, z), "gun_metal")
+    export("downpipe")
+
+
+ALL = ["transformer", "power_pole", "rollup_door", "window_frame", "hvac_unit", "wall_lamp", "downpipe", "soldier", "raskov", "supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree"]
 
 if __name__ == "__main__":
     todo = [a for a in sys.argv[1:] if a in ALL] or ALL
