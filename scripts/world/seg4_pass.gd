@@ -16,6 +16,7 @@ var curve := Curve3D.new()
 var length := 0.0
 var truck: Node3D
 var bed_anchor: Node3D
+var reyes: Node3D
 var active := false
 var s := 0.0                  # distance travelled along the road
 var speed := 0.0
@@ -427,11 +428,12 @@ func _build_truck() -> void:
 ## Driver, lights, bed anchor and engine sound (shared by both truck versions)
 func _truck_extras() -> void:
 	driver_anchor = Node3D.new()
-	driver_anchor.position = Vector3(-0.5, 0.98, -2.05)
+	driver_anchor.position = Vector3(-0.5, 0.92, -1.7)
 	truck.add_child(driver_anchor)
-	B.mesh(truck, _bm(Vector3(0.5, 0.7, 0.4)), Vector3(-0.5, 2.25, -2.2), M.get_mat("uniform"))
-	var hd := B.mesh(truck, SphereMesh.new(), Vector3(-0.5, 2.8, -2.2), M.get_mat("gear"))
-	hd.scale = Vector3(0.25, 0.25, 0.25)
+	# Sgt. Reyes at the wheel: a seated Blender soldier
+	reyes = MD.place(truck, "soldier", Vector3(-0.5, 0.98, -1.62))
+	if reyes:
+		_seat_pose(reyes, true)
 	var hl := B.spot(truck, Vector3(0, 1.6, -4.4), Vector3(-5, 0, 0), Color(1, 0.95, 0.8), 4.0, 45.0, 32.0)
 	hl.light_volumetric_fog_energy = 1.5
 	bed_anchor = Node3D.new()
@@ -444,6 +446,27 @@ func _truck_extras() -> void:
 	truck.add_child(_engine)
 	truck.visible = false
 	truck.global_position = pos_at(0.0) + Vector3(0, -50, 0)
+
+
+func _seat_pose(r: Node3D, hands_on_wheel: bool) -> void:
+	for n in ["thigh_l", "thigh_r"]:
+		var t: Node3D = r.find_child(n, true, false)
+		if t:
+			t.rotation_degrees = Vector3(88, 0, 0)
+	for n in ["shin_l", "shin_r"]:
+		var t: Node3D = r.find_child(n, true, false)
+		if t:
+			t.rotation_degrees = Vector3(-85, 0, 0)
+	var torso: Node3D = r.find_child("torso", true, false)
+	if torso:
+		torso.rotation_degrees = Vector3(-6, 0, 0) if hands_on_wheel else Vector3(-18, 0, 14)
+	for n in ["arm_r", "arm_l"]:
+		var a: Node3D = r.find_child(n, true, false)
+		if a:
+			a.rotation_degrees = Vector3(55, 0, 0) if hands_on_wheel else Vector3(10, 0, 0)
+	var gun: Node3D = r.find_child("gun", true, false)
+	if gun:
+		gun.visible = not hands_on_wheel
 
 
 func _bm(size: Vector3) -> BoxMesh:
@@ -472,6 +495,10 @@ func start_player_drive() -> void:
 	if driver_anchor == null:
 		return
 	player_driving = true
+	if reyes:
+		# Wounded Reyes slides over to the passenger seat
+		reyes.position = Vector3(0.55, 0.98, -1.62)
+		_seat_pose(reyes, false)
 	var p = game.player
 	p.set_carrier(driver_anchor)
 	p.stance = 0

@@ -94,6 +94,14 @@ def join_by_material():
         if len(objs) > 1:
             bpy.ops.object.join()
         bpy.context.active_object.name = mname
+    # Put every part's origin at the model origin so shaders see real model-space heights
+    bpy.context.scene.cursor.location = (0, 0, 0)
+    for o in bpy.context.scene.objects:
+        if o.type == "MESH" and o.parent is None:
+            bpy.ops.object.select_all(action="DESELECT")
+            o.select_set(True)
+            bpy.context.view_layer.objects.active = o
+            bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
 
 
 def export(name):
@@ -352,46 +360,227 @@ def _wheel(x, y, r=0.5, w=0.32):
     cyl("hub", r * 0.18, w + 0.06, (x, y, r), "rust", rot=(0, 90, 0), verts=8)
 
 
+def _tire(x, y, r=0.56, w=0.38, dual=False):
+    """Off-road tyre with chunky tread blocks, dished steel rim and lug nuts."""
+    offs = (-0.21, 0.21) if dual else (0.0,)
+    for o in offs:
+        cx = x + o * (1 if x > 0 else -1)
+        tw = 0.36 if dual else w
+        cyl("tire", r - 0.04, tw, (cx, y, r), "black", rot=(0, 90, 0), verts=28, bevel=0.05)
+        # tread lugs, alternating chevrons
+        n = 26
+        for i in range(n):
+            a = i / n * math.tau
+            side = 1 if i % 2 == 0 else -1
+            box("tread", (tw * 0.45, 0.13, 0.06), (cx + side * tw * 0.22, y + math.cos(a) * (r - 0.02), r + math.sin(a) * (r - 0.02)),
+                "black", 0.012, rot=(math.degrees(a) + 90, 0, 0))
+        cyl("sidewall", r - 0.12, tw + 0.01, (cx, y, r), "black", rot=(0, 90, 0), verts=24)
+    face = x + (max(offs) + 0.2) * (1 if x > 0 else -1)
+    s = 1 if x > 0 else -1
+    cyl("rim", r * 0.58, 0.06, (face - s * 0.02, y, r), "rim_paint", rot=(0, 90, 0), verts=20, bevel=0.01)
+    cyl("rim_dish", r * 0.36, 0.1, (face, y, r), "rim_paint", rot=(0, 90, 0), verts=16)
+    cyl("hub", r * 0.16, 0.2, (face + s * 0.04, y, r), "gun_metal", rot=(0, 90, 0), verts=10, bevel=0.01)
+    for i in range(8):
+        a = i / 8 * math.tau
+        cyl("lug", 0.025, 0.08, (face + s * 0.05, y + math.cos(a) * r * 0.26, r + math.sin(a) * r * 0.26), "metal", rot=(0, 90, 0), verts=6)
+
+
+def _arch(name, cx, cy, cz, r, width, thick, material, a0=0, a1=180, segs=12):
+    """Curved wheel-arch fender made of short segments (arc in the Y/Z plane)."""
+    for i in range(segs):
+        a = math.radians(a0 + (a1 - a0) * (i + 0.5) / segs)
+        seg_len = r * math.radians(a1 - a0) / segs * 1.08
+        box(name, (width, seg_len, thick), (cx, cy + math.cos(a) * r, cz + math.sin(a) * r), material, 0.01, rot=(math.degrees(a) + 90, 0, 0))
+
+
+def _tube(name, p1, p2, r, material, verts=10):
+    p1 = Vector(p1); p2 = Vector(p2)
+    d = p2 - p1
+    bpy.ops.mesh.primitive_cylinder_add(radius=r, depth=d.length, vertices=verts, location=(p1 + p2) / 2)
+    o = bpy.context.active_object
+    o.name = name
+    o.rotation_mode = "QUATERNION"
+    o.rotation_quaternion = d.to_track_quat("Z", "Y")
+    return _finish(o, material)
+
+
 def supply_truck():
-    """Military supply truck. Front (cab) toward Blender +Y = Godot -Z. Bed floor at z = 1.15, centred on y = -2.1."""
+    """6x6 military cargo truck. Front toward Blender +Y (Godot -Z).
+    Bed floor top at z = 1.15 centred on y = -2.1. Driver eye ~ (-0.5, 2.05, 2.58). Cab interior is modelled."""
     reset()
     P = "truck_paint"
-    box("chassis", (1.1, 7.6, 0.3), (0, -0.6, 0.85), "gun_metal")
-    # Cab with sloped bonnet
-    box("cab", (2.3, 1.9, 1.7), (0, 2.25, 1.95), P, 0.06)
-    box("bonnet", (2.1, 1.3, 0.9), (0, 3.6, 1.45), P, 0.08)
-    box("bonnet_slope", (2.05, 0.9, 0.5), (0, 3.3, 1.95), P, 0.05, rot=(18, 0, 0))
-    box("grille", (1.5, 0.05, 0.7), (0, 4.26, 1.35), "gun_metal")
-    for i in range(7):
-        box("grille_bar", (1.45, 0.06, 0.04), (0, 4.28, 1.08 + i * 0.09), "metal")
-    box("bumper", (2.3, 0.2, 0.25), (0, 4.35, 0.9), "gun_metal", 0.02)
-    for sx in (-0.75, 0.75):
-        cyl("headlight", 0.13, 0.08, (sx, 4.29, 1.62), "lamp_glass", rot=(90, 0, 0), verts=16)
-    box("windscreen", (2.0, 0.05, 0.75), (0, 3.2, 2.35), "glass", rot=(-20, 0, 0))
-    for sx in (-1.16, 1.16):
-        box("side_window", (0.04, 1.0, 0.6), (sx, 2.4, 2.35), "glass")
-        box("mirror_arm", (0.35, 0.04, 0.04), (sx * 1.1, 3.05, 2.4), "gun_metal")
-        box("mirror", (0.05, 0.12, 0.25), (sx * 1.25, 3.05, 2.4), "gun_metal")
-        box("step", (0.3, 0.5, 0.06), (sx * 1.0, 2.3, 0.7), "gun_metal")
-        box("fender", (0.35, 1.1, 0.15), (sx * 1.02, 3.55, 1.12), P, 0.03)
-    cyl("exhaust", 0.07, 1.6, (1.15, 1.35, 2.1), "rust", verts=10)
-    # Flatbed with drop sides (wooden slats)
-    box("bed_floor", (2.4, 4.6, 0.12), (0, -2.1, 1.09), "wood")
-    for sx in (-1.18, 1.18):
-        for k in range(3):
-            box("slat", (0.06, 4.6, 0.18), (sx, -2.1, 1.3 + k * 0.24), "wood", 0.01)
-        for yy in (-4.3, -2.1, 0.1):
-            box("stake", (0.08, 0.1, 0.85), (sx, yy, 1.5), P)
+    # ---- chassis
+    for sx in (-0.46, 0.46):
+        box("rail", (0.12, 8.9, 0.3), (sx, -0.35, 0.95), "gun_metal", 0.01)
+    for yy in (3.9, 2.2, 0.6, -1.0, -2.2, -3.6, -4.6):
+        box("crossmember", (0.92, 0.1, 0.18), (0, yy, 0.95), "gun_metal")
+    for yy in (3.3, -1.55, -2.95):
+        cyl("axle", 0.09, 1.9, (0, yy, 0.56), "gun_metal", rot=(0, 90, 0), verts=12)
+        _ball = bpy.ops.mesh.primitive_uv_sphere_add(radius=0.24, location=(0.08, yy, 0.56), segments=16, ring_count=10)
+        o = bpy.context.active_object; o.name = "diff"; o.scale = (1.0, 0.8, 0.9); _finish(o, "gun_metal")
+        for sx in (-0.5, 0.5):
+            box("leaf_spring", (0.1, 1.3, 0.1), (sx, yy, 0.76), "gun_metal", 0.02)
+    cyl("driveshaft", 0.05, 4.6, (0.08, 0.9, 0.62), "gun_metal", rot=(90, 0, 0), verts=8)
+    # ---- front end
+    box("bumper", (2.5, 0.28, 0.3), (0, 4.52, 0.95), "gun_metal", 0.03)
+    for sx in (-0.9, 0.9):
+        torus("tow_hook", 0.1, 0.03, (sx, 4.7, 0.95), "rust", rot=(0, 90, 0), segs=12)
+    cyl("winch", 0.14, 1.0, (0, 4.5, 1.2), "gun_metal", rot=(0, 90, 0), verts=14)
+    box("winch_frame", (1.3, 0.3, 0.1), (0, 4.5, 1.02), "gun_metal")
+    # engine housing: bonnet tapers toward the front
+    box("bonnet_body", (1.55, 1.7, 0.8), (0, 3.62, 1.55), P, 0.05)
+    box("bonnet_top", (1.5, 1.72, 0.14), (0, 3.62, 2.0), P, 0.05, rot=(-2.5, 0, 0))
+    for k in range(9):
+        box("bonnet_louver", (0.02, 0.8, 0.08), (0.79, 3.4 - 0.0, 1.55 + (k - 4) * 0.06), "gun_metal") if False else None
+    for sx in (-0.785, 0.785):
+        for k in range(7):
+            box("louver", (0.03, 0.7, 0.035), (sx, 3.55, 1.45 + k * 0.065), "gun_metal", rot=(0, 0, 0))
+    # grille: frame + vertical bars
+    box("grille_frame", (1.45, 0.1, 0.9), (0, 4.47, 1.52), P, 0.04)
+    box("grille_back", (1.2, 0.05, 0.7), (0, 4.45, 1.52), "black")
+    for i in range(11):
+        box("grille_bar", (0.045, 0.08, 0.72), (-0.55 + i * 0.11, 4.52, 1.52), "gun_metal", 0.01)
+    # front fenders: flat-topped military wings with curved arch
+    for sx in (-1.0, 1.0):
+        _arch("fender_arch", sx, 3.3, 0.56, 0.72, 0.52, 0.04, P, a0=0, a1=180, segs=12)
+        box("fender_top", (0.52, 1.25, 0.05), (sx, 3.45, 1.3), P, 0.02)
+        box("fender_step", (0.5, 0.5, 0.05), (sx, 2.55, 0.88), "gun_metal")
+        cyl("headlight_bucket", 0.15, 0.16, (sx * 0.9, 4.05, 1.48), P, rot=(90, 0, 0), verts=18, bevel=0.01)
+        cyl("headlight", 0.12, 0.04, (sx * 0.9, 4.14, 1.48), "lamp_glass", rot=(90, 0, 0), verts=18)
+        torus("headlight_guard", 0.15, 0.012, (sx * 0.9, 4.2, 1.48), "gun_metal", rot=(90, 0, 0), segs=16)
+        box("blackout_light", (0.12, 0.05, 0.06), (sx * 0.62, 4.06, 1.4), "tail_light")
+        box("marker_light", (0.06, 0.04, 0.05), (sx * 0.95, 3.9, 1.36), "lamp_glass")
+    # ---- cab (hollow shell so the driver sees out)
+    CX, CY0, CY1, CZ0, CZ1 = 1.2, 1.3, 2.85, 1.35, 2.9
+    box("cab_floor", (2.4, CY1 - CY0, 0.08), (0, (CY0 + CY1) / 2, CZ0), P)
+    box("firewall", (2.4, 0.08, 0.8), (0, CY1, CZ0 + 0.4), P, 0.02)
+    box("cowl", (2.4, 0.35, 0.08), (0, CY1 + 0.15, 2.12), P, 0.03, rot=(-8, 0, 0))
+    box("cab_back", (2.4, 0.08, CZ1 - CZ0), (0, CY0, (CZ0 + CZ1) / 2), P, 0.02)
+    box("rear_window", (0.9, 0.04, 0.35), (0, CY0 - 0.03, 2.5), "glass")
+    box("roof", (2.46, CY1 - CY0 + 0.2, 0.08), (0, (CY0 + CY1) / 2 + 0.05, CZ1), P, 0.04)
     for k in range(3):
-        box("tail_slat", (2.4, 0.06, 0.18), (0, -4.38, 1.3 + k * 0.24), "wood", 0.01)
-    box("headboard", (2.4, 0.1, 1.1), (0, 0.15, 1.65), P)
-    # Wheels: single front axle, double rear axle
-    for sx in (-1.05, 1.05):
-        _wheel(sx, 3.4, 0.52, 0.34)
-        _wheel(sx, -1.4, 0.52, 0.4)
-        _wheel(sx, -2.8, 0.52, 0.4)
-    box("tail_light_l", (0.2, 0.04, 0.1), (-0.95, -4.42, 1.0), "tail_light")
-    box("tail_light_r", (0.2, 0.04, 0.1), (0.95, -4.42, 1.0), "tail_light")
+        box("roof_rib", (2.3, 0.05, 0.04), (0, CY0 + 0.4 + k * 0.4, CZ1 + 0.05), P, 0.01)
+    for sx in (-CX, CX):
+        s = 1 if sx > 0 else -1
+        box("door_lower", (0.08, CY1 - CY0 - 0.1, 0.8), (sx, (CY0 + CY1) / 2, CZ0 + 0.42), P, 0.02)
+        box("door_seam", (0.09, 0.02, 0.78), (sx, CY0 + 0.25, CZ0 + 0.42), "black")
+        box("door_handle", (0.05, 0.14, 0.03), (sx + s * 0.05, CY0 + 0.45, 2.02), "metal")
+        box("a_pillar", (0.08, 0.08, 0.75), (sx, CY1 + 0.07, 2.52), P, 0.01, rot=(-10, 0, 0))
+        box("b_pillar", (0.08, 0.1, 0.75), (sx, CY0 + 0.05, 2.52), P, 0.01)
+        box("window_sill", (0.1, CY1 - CY0, 0.06), (sx, (CY0 + CY1) / 2, 2.17), P, 0.01)
+        box("door_glass", (0.02, CY1 - CY0 - 0.15, 0.65), (sx, (CY0 + CY1) / 2, 2.52), "glass")
+        # mirror on a tube arm
+        _tube("mirror_arm", (sx, CY1 - 0.05, 2.35), (sx + s * 0.35, CY1 + 0.02, 2.4), 0.018, "gun_metal", 6)
+        _tube("mirror_arm2", (sx, CY1 - 0.05, 2.7), (sx + s * 0.35, CY1 + 0.02, 2.6), 0.018, "gun_metal", 6)
+        box("mirror", (0.05, 0.2, 0.34), (sx + s * 0.38, CY1 + 0.02, 2.5), "gun_metal", 0.02)
+        box("mirror_glass", (0.01, 0.17, 0.3), (sx + s * 0.38, CY1 - 0.01, 2.5), "glass")
+        _tube("grab_handle", (sx + s * 0.05, CY0 + 0.1, 1.7), (sx + s * 0.05, CY0 + 0.1, 2.3), 0.015, "metal", 6)
+        box("cab_step", (0.35, 0.45, 0.05), (sx * 1.0, CY0 + 0.6, 0.95), "gun_metal")
+    # split windscreen, raked back
+    box("screen_frame_top", (2.4, 0.1, 0.08), (0, CY1 + 0.02, CZ1 - 0.05), P, 0.01)
+    box("screen_frame_mid", (0.08, 0.08, 0.68), (0, CY1 + 0.1, 2.52), P, 0.01, rot=(-10, 0, 0))
+    for sx in (-0.58, 0.58):
+        box("windscreen", (1.08, 0.03, 0.66), (sx, CY1 + 0.1, 2.52), "glass", rot=(-10, 0, 0))
+        _tube("wiper", (sx - 0.3, CY1 + 0.18, 2.2), (sx + 0.1, CY1 + 0.13, 2.6), 0.01, "black", 5)
+    box("sun_visor", (2.3, 0.14, 0.05), (0, CY1 + 0.12, CZ1 + 0.01), P, 0.01)
+    # interior: dash, gauges, steering wheel, seats, gear levers
+    box("dash", (2.3, 0.35, 0.22), (0, CY1 - 0.2, 2.02), "gear", 0.03)
+    box("dash_panel", (0.8, 0.02, 0.16), (-0.5, CY1 - 0.38, 2.05), "black")
+    for i, gx in enumerate((-0.75, -0.6, -0.45, -0.3)):
+        cyl("gauge", 0.045, 0.02, (gx, CY1 - 0.395, 2.06), "metal", rot=(90, 0, 0), verts=12)
+        cyl("gauge_face", 0.037, 0.01, (gx, CY1 - 0.41, 2.06), "nvg_glow" if i == 1 else "black", rot=(90, 0, 0), verts=12)
+    _tube("steering_column", (-0.5, CY1 - 0.3, 1.9), (-0.5, CY1 - 0.62, 2.18), 0.035, "black", 8)
+    torus("steering_wheel", 0.2, 0.022, (-0.5, CY1 - 0.64, 2.2), "black", rot=(-55, 0, 0), segs=24)
+    for a in (0, 120, 240):
+        ra = math.radians(a)
+        _tube("spoke", (-0.5, CY1 - 0.64, 2.2),
+              (-0.5 + math.cos(ra) * 0.19, CY1 - 0.64 + math.sin(ra) * 0.19 * math.sin(math.radians(55)), 2.2 + math.sin(ra) * 0.19 * math.cos(math.radians(55))),
+              0.012, "black", 5)
+    for sx in (-0.5, 0.55):
+        box("seat_base", (0.55, 0.5, 0.14), (sx, CY0 + 0.45, 1.75), "gear", 0.04)
+        box("seat_back", (0.55, 0.12, 0.62), (sx, CY0 + 0.17, 2.1), "gear", 0.04, rot=(-8, 0, 0))
+        box("seat_frame", (0.4, 0.4, 0.3), (sx, CY0 + 0.45, 1.53), "gun_metal")
+    _tube("gear_lever", (0.0, CY1 - 0.55, 1.4), (-0.05, CY1 - 0.7, 1.95), 0.012, "gun_metal", 6)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.035, location=(-0.05, CY1 - 0.7, 1.97), segments=8, ring_count=6)
+    _finish(bpy.context.active_object, "black")
+    box("engine_hump", (0.6, 0.6, 0.3), (0, CY1 - 0.35, 1.5), P, 0.05)
+    # snorkel air intake + exhaust stack behind cab
+    _tube("air_intake", (1.3, 1.12, 1.9), (1.3, 1.12, 3.0), 0.09, "gun_metal", 12)
+    cyl("air_cap", 0.13, 0.15, (1.3, 1.12, 3.05), "gun_metal", verts=12, bevel=0.01)
+    _tube("exhaust", (-1.3, 1.05, 1.2), (-1.3, 1.05, 3.05), 0.06, "rust", 10)
+    cyl("exhaust_guard", 0.09, 0.8, (-1.3, 1.05, 2.4), "gun_metal", verts=10)
+    # ---- behind cab: spare wheel + fuel tanks + tool boxes
+    _tire(0.0, 0.72, 0.5, 0.34) if False else None
+    cyl("spare", 0.52, 0.36, (0, 0.72, 1.75), "black", rot=(90, 0, 0), verts=26, bevel=0.05)
+    cyl("spare_rim", 0.3, 0.4, (0, 0.72, 1.75), "rim_paint", rot=(90, 0, 0), verts=18)
+    box("spare_carrier", (1.2, 0.1, 0.1), (0, 0.72, 1.2), "gun_metal")
+    for sx in (-1.0, 1.0):
+        cyl("fuel_tank", 0.26, 1.0, (sx, 0.4, 0.85), P, rot=(90, 0, 0), verts=18, bevel=0.03)
+        box("tank_strap", (0.56, 0.05, 0.56), (sx, 0.15, 0.85), "gun_metal")
+        box("tank_strap2", (0.56, 0.05, 0.56), (sx, 0.65, 0.85), "gun_metal")
+        cyl("fuel_cap", 0.06, 0.05, (sx, 0.55, 1.12), "black", verts=10)
+        box("toolbox", (0.5, 0.9, 0.45), (sx * 1.02, -3.95, 0.75), P, 0.02)
+        box("toolbox_latch", (0.05, 0.12, 0.08), (sx * 1.28, -3.95, 0.88), "metal")
+    # ---- cargo bed: steel frame, wooden deck & drop sides, canvas over hoops
+    BY0, BY1, BW = -4.45, 0.2, 1.23
+    box("bed_frame", (2.5, BY1 - BY0, 0.14), (0, (BY0 + BY1) / 2, 0.97), "gun_metal", 0.01)
+    box("bed_floor", (2.4, BY1 - BY0 - 0.05, 0.1), (0, (BY0 + BY1) / 2, 1.1), "wood")
+    box("headboard", (2.5, 0.1, 1.3), (0, BY1, 1.75), P, 0.02)
+    for sx in (-BW, BW):
+        for k in range(4):
+            box("side_board", (0.06, BY1 - BY0, 0.16), (sx, (BY0 + BY1) / 2, 1.25 + k * 0.175), "wood", 0.012)
+        box("side_rail", (0.08, BY1 - BY0, 0.06), (sx, (BY0 + BY1) / 2, 1.95), P, 0.01)
+        for yy in (-4.35, -3.2, -2.1, -1.0, 0.1):
+            box("stake", (0.09, 0.08, 0.95), (sx * 1.01, yy, 1.5), P, 0.01)
+        for yy in (-3.8, -1.5):
+            box("hinge", (0.1, 0.12, 0.06), (sx * 1.02, yy, 1.18), "gun_metal")
+    for k in range(4):
+        box("tail_board", (2.46, 0.06, 0.16), (0, BY0, 1.25 + k * 0.175), "wood", 0.012)
+    for sx in (-0.9, 0.9):
+        box("tail_chain", (0.03, 0.03, 0.5), (sx, BY0 - 0.04, 1.6), "gun_metal")
+    # canvas hoops + canvas roof, sides rolled up so the rider can shoot out
+    hoops = (-4.3, -3.15, -2.0, -0.85, 0.1)
+    for yy in hoops:
+        for sx in (-BW, BW):
+            _tube("hoop_leg", (sx, yy, 1.95), (sx, yy, 2.85), 0.022, "gun_metal", 6)
+        _arch_pts = []
+        for i in range(9):
+            a = math.radians(180 * i / 8)
+            _arch_pts.append((math.cos(a) * BW, yy, 2.85 + math.sin(a) * 0.35))
+        for i in range(8):
+            _tube("hoop_top", _arch_pts[i], _arch_pts[i + 1], 0.022, "gun_metal", 6)
+    for i in range(8):
+        a0 = math.radians(180 * i / 8)
+        a1 = math.radians(180 * (i + 1) / 8)
+        mx = (math.cos(a0) + math.cos(a1)) / 2 * (BW + 0.03)
+        mz = 2.87 + (math.sin(a0) + math.sin(a1)) / 2 * 0.37
+        width = math.dist((math.cos(a0) * BW, math.sin(a0) * 0.35), (math.cos(a1) * BW, math.sin(a1) * 0.35)) + 0.03
+        ang = math.degrees(math.atan2(math.sin(a1) * 0.35 - math.sin(a0) * 0.35, math.cos(a1) * BW - math.cos(a0) * BW))
+        box("canvas", (width, BY1 - BY0 + 0.1, 0.025), (mx, (BY0 + BY1) / 2, mz), "canvas", rot=(0, -ang, 0))
+    for sx in (-BW - 0.04, BW + 0.04):
+        cyl("canvas_roll", 0.1, BY1 - BY0, (sx, (BY0 + BY1) / 2, 2.8), "canvas", rot=(90, 0, 0), verts=12)
+        for yy in (-3.7, -2.5, -1.4, -0.3):
+            box("roll_strap", (0.23, 0.04, 0.23), (sx, yy, 2.8), "gear")
+    box("canvas_front", (2.5, 0.03, 1.2), (0, BY1 + 0.02, 2.55), "canvas")
+    # ---- wheels: single front, dual rear tandem
+    for sx in (-1.0, 1.0):
+        _tire(sx, 3.3, 0.56, 0.42)
+        _tire(sx * 0.93, -1.55, 0.56, 0.36, dual=False)
+        _tire(sx * 0.93, -2.95, 0.56, 0.36, dual=False)
+        box("rear_mudguard", (0.46, 3.1, 0.04), (sx * 0.95, -2.25, 1.22), P, 0.01)
+        box("mudflap", (0.42, 0.02, 0.4), (sx * 0.95, -3.7, 0.72), "black")
+        box("mudflap_f", (0.42, 0.02, 0.35), (sx * 1.0, 2.55, 0.62), "black")
+    # ---- rear
+    box("rear_bumper", (2.2, 0.15, 0.18), (0, -4.62, 0.85), "gun_metal", 0.02)
+    for sx in (-0.95, 0.95):
+        box("tail_light_box", (0.26, 0.08, 0.16), (sx, -4.62, 1.02), "gun_metal", 0.01)
+        box("tail_light", (0.2, 0.02, 0.1), (sx, -4.67, 1.02), "tail_light")
+    box("plate", (0.5, 0.02, 0.14), (0, -4.7, 0.85), "hazard_sign")
+    torus("pintle_hook", 0.07, 0.025, (0, -4.72, 0.72), "rust", rot=(0, 90, 0), segs=10)
+    # jerry cans strapped to the side
+    for yy in (-0.35, -0.7):
+        box("jerry_can", (0.16, 0.34, 0.46), (-1.36, yy, 1.35), "jerry_paint", 0.02)
+        box("jerry_rack", (0.04, 0.8, 0.05), (-1.3, -0.52, 1.14), "gun_metal")
     export("supply_truck")
 
 

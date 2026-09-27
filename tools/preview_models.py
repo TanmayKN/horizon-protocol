@@ -11,7 +11,7 @@ for n in names:
               "gun_metal": (0.05,0.05,0.05,1), "gun_polymer": (0.35,0.3,0.2,1), "glove": (0.1,0.1,0.09,1), "beret": (0.5,0.05,0.05,1),
               "skin": (0.75,0.55,0.45,1), "patch": (0.6,0.1,0.1,1), "metal": (0.6,0.6,0.6,1),
               "transformer_paint": (0.4,0.45,0.42,1), "porcelain": (0.45,0.3,0.2,1), "copper": (0.7,0.4,0.2,1), "pole_wood": (0.35,0.25,0.15,1),
-              "door_paint": (0.6,0.62,0.6,1), "frame": (0.5,0.5,0.52,1), "hvac_paint": (0.75,0.75,0.72,1), "black": (0.02,0.02,0.02,1)}
+              "door_paint": (0.6,0.62,0.6,1), "frame": (0.5,0.5,0.52,1), "hvac_paint": (0.75,0.75,0.72,1), "black": (0.02,0.02,0.02,1), "truck_paint": (0.3,0.34,0.24,1), "canvas": (0.36,0.35,0.26,1), "rim_paint": (0.25,0.28,0.2,1), "jerry_paint": (0.2,0.25,0.15,1), "wood": (0.4,0.3,0.2,1), "glass": (0.3,0.4,0.45,1), "tail_light": (0.8,0.1,0.1,1), "lamp_glass": (1,1,0.9,1)}
     for m in bpy.data.materials:
         if m.name in COLORS:
             m.diffuse_color = COLORS[m.name]

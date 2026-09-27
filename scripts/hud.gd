@@ -208,7 +208,7 @@ func _process(delta: float) -> void:
 	bars[1].position = Vector2(-1, gap)
 	bars[2].position = Vector2(-gap - 9, -1)
 	bars[3].position = Vector2(gap, -1)
-	_cross.modulate.a = move_toward(_cross.modulate.a, 0.0 if (p.aiming or p.sprinting) else 1.0, delta * 8.0)
+	_cross.modulate.a = move_toward(_cross.modulate.a, 0.0 if (p.aiming or p.sprinting or p.driving) else 1.0, delta * 8.0)
 
 	_hit_t -= delta
 	_hitmarker.modulate.a = clampf(_hit_t / 0.15, 0.0, 1.0)
@@ -217,6 +217,7 @@ func _process(delta: float) -> void:
 	var w = p.weapon
 	_ammo.text = ("RELOADING" if w.reloading else "%d / %d" % [w.ammo, w.reserve])
 	_ammo.modulate = Color(1, 0.4, 0.3) if w.ammo <= 5 and not w.reloading else Color.WHITE
+	_ammo.visible = not p.driving
 	_health_bar.value = p.health
 	_stamina_bar.value = p.stamina
 	_stamina_bar.modulate.a = 1.0 if p.stamina < 5.9 else 0.3

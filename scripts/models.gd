@@ -35,6 +35,15 @@ static func material_for(mat_name: String, tint: Color) -> Material:
 			return vehicle_paint(tint, 0.9 if n == "truck_paint" else -5.0)
 		"glass":
 			return M.get_mat("glass")
+		"canvas":
+			var cv: StandardMaterial3D = M.tinted("concrete", Color(0.5, 0.48, 0.35)).duplicate()
+			cv.cull_mode = BaseMaterial3D.CULL_DISABLED
+			cv.roughness = 1.0
+			return cv
+		"rim_paint":
+			return vehicle_paint(Color(0.28, 0.31, 0.23), -5.0)
+		"jerry_paint":
+			return vehicle_paint(Color(0.24, 0.3, 0.19), -5.0)
 		"transformer_paint":
 			return vehicle_paint(Color(0.4, 0.45, 0.42), -5.0)
 		"hvac_paint":
