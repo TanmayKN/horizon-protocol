@@ -602,7 +602,8 @@ func setup_inputs() -> void:
 		"sprint": [KEY_SHIFT], "crouch": [KEY_C, KEY_CTRL], "prone": [KEY_Z],
 		"jump": [KEY_SPACE], "lean_left": [KEY_Q], "lean_right": [KEY_E],
 		"interact": [KEY_F], "reload": [KEY_R],
-		"weapon_1": [KEY_1], "weapon_2": [KEY_2], "weapon_3": [KEY_3], "toggle_view": [KEY_V],
+		"weapon_1": [KEY_1], "weapon_2": [KEY_2], "weapon_3": [KEY_3], "weapon_4": [KEY_4], "weapon_5": [KEY_5],
+		"drop_weapon": [KEY_G], "toggle_view": [KEY_V],
 	}
 	for action in keys:
 		if not InputMap.has_action(action):

@@ -16,8 +16,8 @@ const ACTIONS := [
 	["move_forward", "Move forward"], ["move_back", "Move back"], ["move_left", "Move left"], ["move_right", "Move right"],
 	["sprint", "Sprint"], ["crouch", "Crouch / slide"], ["prone", "Prone"], ["jump", "Jump / stand up"],
 	["lean_left", "Lean left"], ["lean_right", "Lean right"], ["fire", "Fire / knife slash"], ["aim", "Aim down sights"],
-	["reload", "Reload"], ["interact", "Interact / pick up gun"], ["weapon_1", "Primary gun"], ["weapon_2", "Pistol"],
-	["weapon_3", "Knife"], ["toggle_view", "First / third person"],
+	["reload", "Reload"], ["interact", "Interact / pick up gun"], ["weapon_1", "Slot 1"], ["weapon_2", "Slot 2"],
+	["weapon_3", "Slot 3"], ["weapon_4", "Slot 4"], ["weapon_5", "Slot 5"], ["drop_weapon", "Drop weapon"], ["toggle_view", "First / third person"],
 ]
 
 
@@ -101,8 +101,8 @@ func _build_controls() -> void:
 	controls_panel.set_anchors_preset(Control.PRESET_CENTER)
 	controls_panel.offset_left = -330
 	controls_panel.offset_right = 330
-	controls_panel.offset_top = -320
-	controls_panel.offset_bottom = 320
+	controls_panel.offset_top = -350
+	controls_panel.offset_bottom = 350
 	add_child(controls_panel)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 8)

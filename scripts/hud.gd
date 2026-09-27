@@ -169,9 +169,9 @@ func _ready() -> void:
 	_place(_caliber, Control.PRESET_BOTTOM_RIGHT, -260, -30, -30, -12)
 	_caliber.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	# Weapon slots (1 primary, 2 sidearm, 3 knife)
-	for i in 3:
+	for i in 5:
 		var sl := _label("", 14, Color.WHITE)
-		_place(sl, Control.PRESET_BOTTOM_RIGHT, -300, -150 + i * 24, -30, -128 + i * 24)
+		_place(sl, Control.PRESET_BOTTOM_RIGHT, -300, -210 + i * 22, -30, -190 + i * 22)
 		sl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		_slot_labels.append(sl)
 	# Sniper scope overlay: a generated reticle image (clear circle, black ring, crosshairs)
@@ -257,10 +257,10 @@ func _process(delta: float) -> void:
 		var sl: Label = _slot_labels[i]
 		var nm: String = w.weapon_name(i)
 		var extra := ""
-		if nm != "EMPTY" and i < 2:
+		if nm != "EMPTY" and not w.GUNS[w.slots[i]["id"]].get("melee", false):
 			var sd: Dictionary = w.slots[i]
 			extra = "  %d" % int(sd["mag"])
-		sl.text = "[%d]  %s%s" % [i + 1, nm, extra]
+		sl.text = "[%d]  %s%s" % [i + 1, nm if nm != "EMPTY" else "- empty -", extra]
 		sl.visible = not p.driving
 		sl.modulate = Color(1, 0.85, 0.35, 1.0) if i == w.current else Color(1, 1, 1, 0.45)
 	_health_bar.value = p.health

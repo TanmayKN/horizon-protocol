@@ -16,15 +16,9 @@ You are **Vance**, a Vanguard operative sent alone into the Kranor mountains to 
 
 ## Weapons and ammo
 
-You carry three slots:
+You have **5 weapon slots** (keys 1-5). You start with a suppressed **M4 carbine** (5.56), a **P226 pistol** (9mm) and a **combat knife** (silent, one hit up close), plus 2 empty slots. Any weapon can go in any slot.
 
-| Slot | Weapon |
-|---|---|
-| 1 | Primary gun. You start with a suppressed **M4 carbine** (5.56) |
-| 2 | **P226 pistol** (9mm) |
-| 3 | **Combat knife**: silent, kills in one hit up close |
-
-- Every enemy you take down **drops his gun**. Walk up to it and press **F** to take it (your old gun is dropped in its place). Kranor soldiers carry the **AK-74** (7.62), and their snipers carry a scoped **SVD marksman rifle** (.308) that zooms in when you aim.
+- Every enemy you take down **drops his gun**. Walk up to it and press **F** to take it: it goes into a free slot, or swaps with the gun in your hands if all 5 are full. Press **G** to drop a weapon. Kranor soldiers carry the **AK-74** (7.62), and their snipers carry a scoped **SVD marksman rifle** (.308) that zooms in when you aim.
 - Ammo pickups are floating, spinning ammo cans with a coloured glow: **green** = 5.56, **orange** = 7.62, **red** = .308, **purple** = 9mm. Intel is a red folder with a blue glow.
 - Ammo is separate for each calibre and **you have to pick it up**: soldiers drop ammo pouches, and each checkpoint has a supply cache with 5.56 and 9mm. Press F on a gun you already have to take its ammo.
 - Your M4 is suppressed, so only nearby enemies hear it. The captured guns are **loud** and alert everyone around.
@@ -40,7 +34,8 @@ Find the **6 hidden intel documents** and listen in on the guards' conversations
 | Left click | Shoot |
 | Right click | Aim down sights |
 | R | Reload |
-| 1 / 2 / 3 or mouse wheel | Switch weapon: primary gun / pistol / knife |
+| 1 - 5 or mouse wheel | Switch between your 5 weapon slots |
+| G | Drop the weapon in your hands |
 | Shift | Sprint (uses stamina). Sprint + C to slide |
 | C / Ctrl | Crouch |
 | Z | Prone |

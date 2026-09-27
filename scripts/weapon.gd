@@ -1,6 +1,6 @@
 extends Node3D
-## Vance's weapons: 3 slots (1 primary gun, 2 sidearm, 3 knife).
-## Guns taken from fallen enemies go into their slot; ammo is tracked per calibre and has to be picked up.
+## Vance's weapons: 5 hand slots, any weapon in any slot (keys 1-5 / mouse wheel, G drops).
+## Guns taken from fallen enemies go into a free slot; ammo is tracked per calibre and has to be picked up.
 
 const B := preload("res://scripts/build.gd")
 const M := preload("res://scripts/mats.gd")
@@ -42,7 +42,8 @@ var flash_light: OmniLight3D
 var flash_mesh: MeshInstance3D
 
 ## slot -> {"id": weapon id or "", "mag": rounds loaded}
-var slots: Array = [{"id": "carbine", "mag": 30}, {"id": "pistol", "mag": 15}, {"id": "knife", "mag": 0}]
+const SLOT_COUNT := 5
+var slots: Array = [{"id": "carbine", "mag": 30}, {"id": "pistol", "mag": 15}, {"id": "knife", "mag": 0}, {"id": "", "mag": 0}, {"id": "", "mag": 0}]
 var current := 0
 var reserves := {"5.56": 60, "7.62": 0, ".308": 0, "9mm": 30}
 
@@ -181,27 +182,70 @@ func add_ammo(kind: String, amount: int) -> void:
 	reserves[kind] = int(reserves.get(kind, 0)) + amount
 
 
-## Pick up a gun lying on the ground. Returns true if it was taken.
+func slot_of(gid: String) -> int:
+	for i in slots.size():
+		if String(slots[i]["id"]) == gid:
+			return i
+	return -1
+
+
+func free_slot() -> int:
+	return slot_of("")
+
+
+## Pick up a weapon lying on the ground.
+## Same weapon already carried -> take its ammo.  Free slot -> put it there.  Hands full -> swap with what you're holding.
 func take_gun(gid: String, mag: int) -> void:
-	var slot: int = GUNS[gid]["slot"]
-	var old: Dictionary = slots[slot]
-	if String(old["id"]) == gid:
+	var have := slot_of(gid)
+	if have >= 0:
 		if GUNS[gid].get("melee", false):
-			switch_to(slot)
+			switch_to(have)
 			return
-		# Same gun: just strip its ammo
 		add_ammo(String(GUNS[gid]["ammo"]), mag)
 		if player.game:
 			player.game.hud.hint("+%d %s" % [mag, GUNS[gid]["ammo"]], 1.4)
 		S.play2d(self, "reload", -10.0)
 		return
-	if String(old["id"]) != "" and player.game:
-		player.game.spawn_weapon_drop(String(old["id"]), player.global_position + Vector3(0, 0.3, 0) - player.global_transform.basis.z * 0.6, int(old["mag"]))
+	var slot := free_slot()
+	if slot < 0:
+		slot = current
+		_drop_slot(slot)
 	slots[slot] = {"id": gid, "mag": mag}
 	current = -1
 	switch_to(slot)
 	if player.game:
-		player.game.hud.hint("PICKED UP  %s" % GUNS[gid]["name"], 1.6)
+		player.game.hud.hint("PICKED UP  %s   (slot %d)" % [GUNS[gid]["name"], slot + 1], 1.6)
+
+
+func _drop_slot(slot: int) -> void:
+	var old: Dictionary = slots[slot]
+	if String(old["id"]) != "" and player.game:
+		player.game.spawn_weapon_drop(String(old["id"]), player.global_position + Vector3(0, 0.3, 0) - player.global_transform.basis.z * 0.8, int(old["mag"]))
+	slots[slot] = {"id": "", "mag": 0}
+
+
+## G: throw away the weapon in your hands (you always keep at least one)
+func drop_current() -> void:
+	var count := 0
+	for sl in slots:
+		if String(sl["id"]) != "":
+			count += 1
+	if count <= 1:
+		if player.game:
+			player.game.hud.hint("You need to keep at least one weapon", 1.4)
+		return
+	var name_dropped := weapon_name(current)
+	_drop_slot(current)
+	S.play2d(self, "swap", -8.0)
+	if player.game:
+		player.game.hud.hint("DROPPED  %s" % name_dropped, 1.2)
+	var s := current
+	for i in slots.size():
+		s = (s + 1) % slots.size()
+		if String(slots[s]["id"]) != "":
+			break
+	current = -1
+	switch_to(s)
 
 
 func refill() -> void:
@@ -247,12 +291,12 @@ func add_mud() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if player == null or not player.controls_enabled or player.is_dead or player.driving:
 		return
-	if event.is_action_pressed("weapon_1"):
-		switch_to(0)
-	elif event.is_action_pressed("weapon_2"):
-		switch_to(1)
-	elif event.is_action_pressed("weapon_3"):
-		switch_to(2)
+	for i in SLOT_COUNT:
+		if event.is_action_pressed("weapon_%d" % (i + 1)):
+			switch_to(i)
+			return
+	if event.is_action_pressed("drop_weapon"):
+		drop_current()
 	elif event is InputEventMouseButton and event.pressed:
 		var mb := event as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_WHEEL_UP or mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
@@ -479,14 +523,16 @@ func _check_pickups() -> void:
 		return
 	var gid: String = best.get_meta("gun_id")
 	var mag: int = best.get_meta("mag")
-	var slot: int = GUNS[gid]["slot"]
 	var text := ""
-	if String(slots[slot]["id"]) == gid:
-		text = "Press  F  to take ammo  (+%d %s)" % [mag, GUNS[gid]["ammo"]]
-	elif String(slots[slot]["id"]) == "":
-		text = "Press  F  to pick up  %s" % GUNS[gid]["name"]
+	if slot_of(gid) >= 0:
+		if GUNS[gid].get("melee", false):
+			text = "You already have a %s" % GUNS[gid]["name"]
+		else:
+			text = "Press  F  to take ammo  (+%d %s)" % [mag, GUNS[gid]["ammo"]]
+	elif free_slot() >= 0:
+		text = "Press  F  to pick up  %s   (goes in slot %d)" % [GUNS[gid]["name"], free_slot() + 1]
 	else:
-		text = "Press  F  to swap  %s  for  %s" % [weapon_name(slot), GUNS[gid]["name"]]
+		text = "Hands full - press  F  to swap your  %s  for  %s" % [weapon_name(current), GUNS[gid]["name"]]
 	game.hud.prompt(text)
 	_prompt_on = true
 	if Input.is_action_just_pressed("interact"):
