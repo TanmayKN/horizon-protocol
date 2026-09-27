@@ -6,6 +6,7 @@ const B := preload("res://scripts/build.gd")
 const M := preload("res://scripts/mats.gd")
 const S := preload("res://scripts/sfx.gd")
 const TechScript := preload("res://scripts/technical.gd")
+const MD := preload("res://scripts/models.gd")
 
 const ROAD_W := 8.0
 const PASS_START_Z := 200.0
@@ -348,12 +349,19 @@ func _build_roadblock() -> void:
 	var barrier := M.tinted("concrete", Color(0.7, 0.68, 0.62))
 	for k in [-2.6, 0.0, 2.6]:
 		var bp: Vector3 = p + left * k + Vector3(0, 0.45, 0)
-		var jb := B.box(self, Vector3(2.4, 0.9, 0.6), bp, barrier, false)
-		jb.look_at(bp + left, Vector3.UP)
+		var jb: Node3D = MD.place(self, "jersey_barrier", bp - Vector3(0, 0.45, 0), Vector3.ZERO, Vector3(0.85, 1.0, 1.0))
+		if jb == null:
+			jb = B.box(self, Vector3(2.4, 0.9, 0.6), bp, barrier, false)
+		jb.look_at(jb.global_position + left, Vector3.UP)
+		jb.rotate_y(PI / 2)
 		_roadblock_nodes.append(jb)
 	for k in [-5.5, 5.5]:
 		var sp: Vector3 = p + left * k + f * 2.0 + Vector3(0, 0.4, 0)
-		B.box(self, Vector3(3.0, 0.8, 1.0), sp, M.tinted("uniform", Color(0.7, 0.65, 0.5)), false).look_at(sp + left, Vector3.UP)
+		var sb: Node3D = MD.place(self, "sandbags", sp - Vector3(0, 0.4, 0))
+		if sb == null:
+			sb = B.box(self, Vector3(3.0, 0.8, 1.0), sp, M.tinted("uniform", Color(0.7, 0.65, 0.5)), false)
+		sb.look_at(sb.global_position + left, Vector3.UP)
+		sb.rotate_y(PI / 2)
 	B.box(self, Vector3(0.2, 3.0, 0.2), p + left * 4.8 + Vector3(0, 1.5, 0), M.get_mat("metal"), false)
 	B.label3d(self, "VANGUARD CORP\nCHECKPOINT 7", p + left * 4.8 + Vector3(0, 3.3, 0) + f * 0.2, 48, Color(0.95, 0.3, 0.2)).look_at(p + left * 4.8 + Vector3(0, 3.3, 0) - f, Vector3.UP)
 	var flood := B.spot(self, p + left * 4.8 + Vector3(0, 3.0, 0), Vector3.ZERO, Color(1, 0.95, 0.85), 6.0, 40.0, 35.0)

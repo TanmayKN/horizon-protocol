@@ -29,6 +29,9 @@ var kills := 0
 var headshots := 0
 var shots_fired := 0
 var play_time := 0.0
+var intel_found := 0
+var intel_total := 0
+var _intel_near = null
 var enemies: Array = []
 var env: Environment
 var sun: DirectionalLight3D
@@ -228,6 +231,49 @@ func on_enemy_alerted(enemy) -> void:
 	mission.on_alert(enemy)
 
 
+## Collectible intel document: walk up and press F to read it
+func spawn_intel(pos: Vector3, title: String, body: String) -> void:
+	intel_total += 1
+	var M := preload("res://scripts/mats.gd")
+	var a := Area3D.new()
+	a.position = pos
+	var shape := SphereShape3D.new()
+	shape.radius = 1.6
+	B.add_shape(a, shape, Vector3.ZERO)
+	B.box(a, Vector3(0.32, 0.03, 0.24), Vector3.ZERO, M.tinted("wood", Color(0.75, 0.6, 0.35)), false)
+	B.box(a, Vector3(0.28, 0.01, 0.2), Vector3(0.01, 0.02, 0), M.emissive(Color(0.95, 0.92, 0.8), 0.5), false)
+	B.omni(a, Vector3(0, 0.3, 0), Color(1, 0.85, 0.5), 0.6, 2.5)
+	a.set_meta("title", title)
+	a.set_meta("body", body)
+	add_child(a)
+	a.body_entered.connect(_intel_enter.bind(a))
+	a.body_exited.connect(_intel_exit.bind(a))
+
+
+func _intel_enter(b: Node, a: Area3D) -> void:
+	if b == player:
+		_intel_near = a
+
+
+func _intel_exit(b: Node, a: Area3D) -> void:
+	if b == player and _intel_near == a:
+		_intel_near = null
+		hud.prompt("")
+
+
+func _check_intel() -> void:
+	if _intel_near == null or not is_instance_valid(_intel_near):
+		return
+	hud.prompt("Press  F  to read intel")
+	if Input.is_action_just_pressed("interact"):
+		intel_found += 1
+		hud.show_intel(_intel_near.get_meta("title"), _intel_near.get_meta("body"), intel_found, intel_total)
+		S.play2d(self, "beep", -10.0)
+		hud.prompt("")
+		_intel_near.queue_free()
+		_intel_near = null
+
+
 func spawn_ammo(pos: Vector3) -> void:
 	var a := Area3D.new()
 	a.position = pos + Vector3(0.4, 0.15, 0.3)
@@ -268,11 +314,15 @@ func start_segment4() -> void:
 
 
 var _indoor_t := 0.0
+var clouds: MeshInstance3D
 var _rain_on := true
 
 
 func _process(delta: float) -> void:
 	play_time += delta
+	_check_intel()
+	if clouds and player:
+		clouds.global_position = Vector3(player.global_position.x, player.global_position.y + 95.0, player.global_position.z)
 	# No rain under roofs: check what is above Vance's head a few times a second
 	_indoor_t -= delta
 	if _indoor_t <= 0.0 and player and rain:
@@ -301,7 +351,7 @@ func finish_game() -> void:
 	var acc := 0
 	if shots_fired > 0:
 		acc = int(100.0 * float(kills * 3) / float(shots_fired))
-	hud.end_card("MISSION COMPLETE", "THE HORIZON PROTOCOL\n\nThe Horizon Protocol was recovered at 06:31.\nWithout Raskov, the Vanguard Corp network collapsed within the week.\nMajor Elena Vance and Sgt. Marcus Reyes were extracted from Site 9 by Nightingale 2-1.\n\nTime  %d:%02d      Kills  %d      Headshots  %d      Shots fired  %d\n\n- - -\n\nA game by Tanmay\nBuilt in Godot with Claude\n\nThanks for playing." % [mins, secs, kills, headshots, shots_fired])
+	hud.end_card("MISSION COMPLETE", "THE HORIZON PROTOCOL\n\nThe Horizon Protocol was recovered at 06:31.\nWithout Raskov, the Vanguard Corp network collapsed within the week.\nMajor Elena Vance and Sgt. Marcus Reyes were extracted from Site 9 by Nightingale 2-1.\nThe buyer, known only as 'H', was never found.\n\nTime  %d:%02d      Kills  %d      Headshots  %d      Intel  %d / %d\n\n- - -\n\nA game by Tanmay\nBuilt in Godot with Claude\n\nThanks for playing." % [mins, secs, kills, headshots, intel_found, intel_total])
 
 
 ## Short slow-motion moment (used for the final breach)
@@ -378,6 +428,20 @@ func _build_environment() -> void:
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
+	# Overcast cloud layer that drifts slowly (follows Vance so it never ends)
+	var M := preload("res://scripts/mats.gd")
+	if M.tex("clouds_albedo") != null:
+		clouds = MeshInstance3D.new()
+		var pm := PlaneMesh.new()
+		pm.size = Vector2(1400, 1400)
+		clouds.mesh = pm
+		var cm := ShaderMaterial.new()
+		cm.shader = load("res://shaders/clouds.gdshader")
+		cm.set_shader_parameter("clouds", M.tex("clouds_albedo"))
+		clouds.material_override = cm
+		clouds.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		clouds.position = Vector3(0, 95, 0)
+		add_child(clouds)
 
 	sun = DirectionalLight3D.new()
 	sun.light_energy = 0.3

@@ -180,6 +180,11 @@ func _process(delta: float) -> void:
 	if p == null:
 		return
 
+	if _intel_panel and _intel_panel.visible and _t > _intel_hide:
+		_intel_panel.modulate.a = move_toward(_intel_panel.modulate.a, 0.0, delta * 2.0)
+		if _intel_panel.modulate.a <= 0.0:
+			_intel_panel.visible = false
+
 	# Radio / hint fade
 	if _t > _radio_hide:
 		_radio_panel.modulate.a = move_toward(_radio_panel.modulate.a, 0.0, delta * 2.5)
@@ -392,6 +397,35 @@ func briefing(lines: Array) -> void:
 func _input(event: InputEvent) -> void:
 	if (event is InputEventMouseButton and event.pressed) or event.is_action_pressed("jump"):
 		briefing_skip = true
+
+
+var _intel_panel: PanelContainer
+var _intel_title: Label
+var _intel_body: Label
+var _intel_hide := 0.0
+
+
+func show_intel(title: String, body: String, count: int, total: int) -> void:
+	if _intel_panel == null:
+		_intel_panel = PanelContainer.new()
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.12, 0.11, 0.09, 0.93)
+		sb.border_color = Color(0.85, 0.75, 0.45, 0.8)
+		sb.set_border_width_all(2)
+		sb.set_content_margin_all(18)
+		_intel_panel.add_theme_stylebox_override("panel", sb)
+		_place(_intel_panel, Control.PRESET_CENTER_RIGHT, -470, -170, -30, 170)
+		var vb := VBoxContainer.new()
+		_intel_panel.add_child(vb)
+		_intel_title = _label("", 18, Color(0.95, 0.85, 0.5), vb)
+		_intel_body = _label("", 16, Color(0.9, 0.9, 0.86), vb)
+		_intel_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_intel_body.custom_minimum_size = Vector2(400, 0)
+	_intel_title.text = "INTEL  %d / %d   -   %s" % [count, total, title]
+	_intel_body.text = body
+	_intel_panel.visible = true
+	_intel_panel.modulate.a = 1.0
+	_intel_hide = _t + 10.0
 
 
 func end_card(line1: String, body: String) -> void:

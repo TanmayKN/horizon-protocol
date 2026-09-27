@@ -19,6 +19,14 @@ uniform sampler2D rock_a : source_color, filter_linear_mipmap_anisotropic, repea
 uniform sampler2D rock_n : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D rock_r : hint_default_white, filter_linear_mipmap, repeat_enable;
 uniform float scale = 2.5;
+varying float v_height;
+varying float v_up;
+
+void vertex() {
+	v_height = VERTEX.y;
+	v_up = NORMAL.y;
+}
+
 uniform float wetness : hint_range(0.0, 1.0) = 0.5;
 
 void fragment() {
@@ -51,7 +59,14 @@ void fragment() {
 	float macro = texture(forest_a, UV * 0.07).g;
 	a *= mix(0.82, 1.12, macro * 1.6);
 
-	float wet = wetness * (0.6 + 0.4 * w.r);
+	// Snow on the high peaks around the valley
+	float snow_n = texture(rock_a, UV * 0.05).r;
+	float snow = smoothstep(21.0, 29.0, v_height + snow_n * 6.0) * smoothstep(0.45, 0.8, v_up);
+	a = mix(a, vec3(0.86, 0.88, 0.9), snow);
+	r = mix(r, 0.55, snow);
+	n = mix(n, vec3(0.5, 0.5, 1.0), snow * 0.7);
+
+	float wet = wetness * (0.6 + 0.4 * w.r) * (1.0 - snow);
 	ALBEDO = a * (1.0 - wet * 0.15);
 	ROUGHNESS = clamp(r * (1.0 - wet * 0.45), 0.05, 1.0);
 	NORMAL_MAP = n;

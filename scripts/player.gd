@@ -60,6 +60,8 @@ var _recoil := Vector2.ZERO   # visual kick (pitch, yaw) that springs back
 var _since_damage := 99.0
 var _stamina_lock := false
 var _mud_splash_timer := 0.0
+var _ladders: Array = []
+var _climb_step := 0.0
 
 
 func _ready() -> void:
@@ -144,6 +146,43 @@ func _physics_process(delta: float) -> void:
 		surface = "metal"
 		_update_camera(delta, Vector2.ZERO, 0.0)
 		return
+	# Ladder climbing: W climbs up, S climbs down (whichever way you face), Space jumps off
+	if not _ladders.is_empty() and controls_enabled and move_enabled:
+		var iv := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+		var lad: Node3D = _ladders[0]
+		var top_y: float = lad.global_position.y + float(lad.get_meta("height", 3.0))
+		var into: Vector3 = -lad.global_transform.basis.z   # towards the wall / platform
+		var on_ground_backing := is_on_floor() and iv.y > 0.1
+		if Input.is_action_just_pressed("jump"):
+			_ladders.clear()
+			velocity = -into * 3.0 + Vector3.UP * 2.5
+		elif not on_ground_backing:
+			if stance != Stance.STAND:
+				stance = Stance.STAND
+				_apply_stance(false)
+			var climb := -iv.y
+			var hv := Vector3.ZERO
+			if global_position.y > top_y - 0.35 and climb > 0.0:
+				# At the top: step forward off the ladder onto the platform
+				hv = into * 2.2
+				velocity.y = 1.2
+			else:
+				velocity.y = climb * 2.6
+				# Stay centred on the ladder
+				var to_line: Vector3 = lad.global_position + lad.global_transform.basis.z * 0.55 - global_position
+				to_line.y = 0
+				hv = to_line * 4.0
+			velocity.x = hv.x
+			velocity.z = hv.z
+			move_and_slide()
+			_climb_step += absf(climb) * delta * 2.6
+			if _climb_step > 0.45:
+				_climb_step = 0.0
+				S.play3d(self, "step_metal", global_position + Vector3.UP, -10.0, 0.2)
+			_fall_speed = 0.0
+			_update_camera(delta, Vector2.ZERO, 0.0)
+			return
+
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
 		_fall_speed = maxf(_fall_speed, -velocity.y)
@@ -379,6 +418,17 @@ func respawn(pos: Vector3, yaw: float) -> void:
 	stance = Stance.CROUCH
 	_apply_stance(true)
 	weapon.refill()
+
+
+func enter_ladder(l: Node) -> void:
+	if not l in _ladders:
+		_ladders.append(l)
+		if game and _ladders.size() == 1:
+			game.hud.hint("LADDER  -  W to climb up, S to climb down", 2.5)
+
+
+func exit_ladder(l: Node) -> void:
+	_ladders.erase(l)
 
 
 func set_carrier(node: Node3D) -> void:

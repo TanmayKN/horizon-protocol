@@ -5,6 +5,7 @@ extends Node3D
 const B := preload("res://scripts/build.gd")
 const M := preload("res://scripts/mats.gd")
 const S := preload("res://scripts/sfx.gd")
+const MD := preload("res://scripts/models.gd")
 
 const Y := 19.0
 const HALL_MIN := Vector3(0, 19, 604)
@@ -135,9 +136,24 @@ func _build_hall() -> void:
 	# Concrete barrier the truck ends up pinned against
 	B.box(self, Vector3(10, 1.3, 1.2), Vector3(10, Y + 0.65, 626), M.tinted("concrete", Color(0.75, 0.72, 0.65)))
 	B.box(self, Vector3(10, 0.3, 1.25), Vector3(10, Y + 1.3, 626), M.get_mat("hazard"), false)
-	# Crates, fuel drums, a jeep
+	# Crates, sandbag positions, drums, a jeep
 	for cp in [Vector3(3, 0, 610), Vector3(4.4, 0, 611), Vector3(16, 0, 622), Vector3(3.5, 0, 628)]:
-		B.box(self, Vector3(1.3, 1.3, 1.3), Vector3(cp.x, Y + 0.65, cp.z), M.get_mat("wood"))
+		var cb := StaticBody3D.new()
+		cb.position = Vector3(cp.x, Y, cp.z)
+		add_child(cb)
+		if MD.place(cb, "crate", Vector3.ZERO, Vector3(0, rng.randf() * 30, 0)) == null:
+			B.mesh(cb, BoxMesh.new(), Vector3(0, 0.55, 0), M.get_mat("wood"))
+		var cs := BoxShape3D.new()
+		cs.size = Vector3(1.1, 1.1, 1.1)
+		B.add_shape(cb, cs, Vector3(0, 0.55, 0))
+	for sp in [Vector3(6, 0, 630), Vector3(14, 0, 630)]:
+		var sb := StaticBody3D.new()
+		sb.position = Vector3(sp.x, Y, sp.z)
+		add_child(sb)
+		MD.place(sb, "sandbags", Vector3.ZERO, Vector3(0, 0, 0), Vector3(0.9, 1.0, 1.0))
+		var ss := BoxShape3D.new()
+		ss.size = Vector3(2.2, 0.6, 0.5)
+		B.add_shape(sb, ss, Vector3(0, 0.3, 0))
 	B.box(self, Vector3(2.0, 1.4, 4.0), Vector3(16.5, Y + 0.9, 609), M.tinted("rust", Color(0.3, 0.33, 0.25)))
 	for lz in [610.0, 620.0, 629.0]:
 		_fluoro(Vector3(10, Y + 7.2, lz), 1.4, 12.0)

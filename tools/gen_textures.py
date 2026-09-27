@@ -353,8 +353,59 @@ def pine_card():
     print("wrote pine card")
 
 
+def fern_card():
+    """Fern/undergrowth sprite: several arching fronds with leaflets (RGBA)."""
+    h, w = 512, 512
+    alb = np.zeros((h, w, 3), np.float32)
+    alpha = np.zeros((h, w), np.float32)
+    r = np.random.default_rng(222)
+
+    def dot(y, x, rad, c):
+        yi0, yi1 = int(max(0, y - rad - 1)), int(min(h, y + rad + 2))
+        xi0, xi1 = int(max(0, x - rad - 1)), int(min(w, x + rad + 2))
+        for yy in range(yi0, yi1):
+            for xx in range(xi0, xi1):
+                a = np.clip(rad + 0.5 - np.hypot(yy - y, xx - x), 0, 1)
+                if a > alpha[yy, xx]:
+                    alpha[yy, xx] = a
+                    alb[yy, xx] = c
+
+    for f in range(9):
+        ang = np.radians(r.uniform(-65, 65))
+        L = r.uniform(260, 420)
+        bend = r.uniform(0.6, 1.2)
+        g = r.uniform(0.8, 1.15)
+        base = col(52 * g, 88 * g, 36 * g)
+        for k in range(160):
+            t = k / 160
+            x = w / 2 + np.sin(ang) * L * t
+            y = h - 4 - np.cos(ang) * L * t + (t * t) * L * 0.35 * bend
+            dot(y, x, 1.6, col(60, 70, 34))
+            if k % 6 == 0 and t > 0.08:
+                lf = (1 - t) * 38 + 6
+                for side in (-1, 1):
+                    pa = ang + side * np.radians(75)
+                    for j in range(int(lf)):
+                        tt = j / lf
+                        dot(y - np.cos(pa) * j * 0.9 + tt * 4, x + np.sin(pa) * j * 0.9, 2.6 * (1 - tt) + 0.6, base * (0.8 + 0.3 * tt))
+    Image.fromarray(np.dstack([(np.clip(alb, 0, 1) * 255).astype(np.uint8), (alpha * 255).astype(np.uint8)]), "RGBA").save(os.path.join(OUT, "fern_card_albedo.png"))
+    print("wrote fern card")
+
+
+def clouds():
+    """Tileable overcast cloud layer (greyscale in RGB, density in alpha)."""
+    s = 1024
+    n = fnoise(s, s, 2.6, 301) * 0.65 + band(s, s, 0.004, 0.03, 302) * 0.35
+    dens = np.clip((n - 0.35) * 2.2, 0, 1)
+    shade = 0.55 + 0.45 * (1 - band(s, s, 0.01, 0.06, 303))
+    rgb = np.dstack([shade, shade * 1.01, shade * 1.03])
+    Image.fromarray(np.dstack([(np.clip(rgb, 0, 1) * 255).astype(np.uint8), (dens * 255).astype(np.uint8)]), "RGBA").save(os.path.join(OUT, "clouds_albedo.png"))
+    print("wrote clouds")
+
+
 if __name__ == "__main__":
     import sys
-    todo = sys.argv[1:] or ["forest_floor", "mud", "gravel", "bark", "log_side", "concrete", "asphalt", "painted_metal", "rock", "planks", "camo", "pine_card"]
+    todo = sys.argv[1:] or ["forest_floor", "mud", "gravel", "bark", "log_side", "concrete", "asphalt", "painted_metal", "rock", "planks", "camo", "pine_card", "fern_card", "clouds"]
     for name in todo:
         globals()[name]()
+

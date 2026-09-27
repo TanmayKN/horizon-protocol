@@ -6,6 +6,8 @@ const B := preload("res://scripts/build.gd")
 const M := preload("res://scripts/mats.gd")
 const S := preload("res://scripts/sfx.gd")
 const Shootable := preload("res://scripts/world/shootable.gd")
+const MD := preload("res://scripts/models.gd")
+const Ladder := preload("res://scripts/world/ladder.gd")
 
 const TOWER_POS := Vector3(0, 0, 18)
 const WIRE_POS := Vector3(0, 0, -30)
@@ -34,6 +36,7 @@ func _ready() -> void:
 	_build_tower()
 	_build_logging_yard()
 	_build_kranor_fence()
+	_build_props()
 
 
 func _process(delta: float) -> void:
@@ -119,7 +122,7 @@ func _build_trees() -> void:
 		tries += 1
 		var x := rng.randf_range(-118, 118)
 		var z := rng.randf_range(-116, -34)
-		if absf(x - terrain.road_x_at(z)) < 8.0:
+		if absf(x - terrain.road_x_at(z)) < 8.0 or terrain.creek_dist(x, z) < 3.5:
 			continue
 		if Vector2(x, z).distance_to(Vector2(0, -52)) < 4.0:
 			continue
@@ -405,14 +408,18 @@ func _build_tower() -> void:
 		B.box(self, Vector3(4.6, 0.12, 0.12), p + Vector3(0, 4.5, s), wood, false, Vector3(0, 0, 52))
 	B.box(self, Vector3(4.4, 0.3, 4.4), p + Vector3(0, 9.0, 0), wood)
 	for s in [-1, 1]:
-		B.box(self, Vector3(4.4, 1.0, 0.12), p + Vector3(0, 9.65, s * 2.15), wood)
+		if s < 0:
+			B.box(self, Vector3(4.4, 1.0, 0.12), p + Vector3(0, 9.65, s * 2.15), wood)
+		else:
+			B.box(self, Vector3(1.7, 1.0, 0.12), p + Vector3(-1.35, 9.65, 2.15), wood)
+			B.box(self, Vector3(1.7, 1.0, 0.12), p + Vector3(1.35, 9.65, 2.15), wood)
 		B.box(self, Vector3(0.12, 1.0, 4.4), p + Vector3(s * 2.15, 9.65, 0), wood)
 	for sx in [-2.1, 2.1]:
 		for sz in [-2.1, 2.1]:
 			B.box(self, Vector3(0.12, 2.6, 0.12), p + Vector3(sx, 10.4, sz), wood, false)
 	B.box(self, Vector3(5.0, 0.2, 5.0), p + Vector3(0, 11.8, 0), M.get_mat("corrugated"), true, Vector3(4, 0, 0))
-	for rung in 18:
-		B.box(self, Vector3(0.8, 0.05, 0.05), p + Vector3(0, 0.4 + rung * 0.5, 2.3), metal, false)
+	# Climbable steel ladder up to the platform (gap in the railing above it)
+	Ladder.create(self, p + Vector3(0, 0, 2.42), 9.4, 0.0)
 
 	# Searchlight (volumetric beam through the drizzle)
 	search_pivot = Node3D.new()
@@ -495,12 +502,120 @@ func _build_logging_yard() -> void:
 	# Fuel drums
 	for i in 7:
 		var dp := Vector3(10 + (i % 3) * 0.75, 0, 28 + floorf(i / 3.0) * 0.75)
-		B.cyl(self, 0.3, 0.3, 0.9, dp + Vector3(0, 0.45, 0), M.tinted("rust", Color(0.55, 0.2, 0.15)), true, Vector3.ZERO, 12)
+		if MD.available("drum"):
+			var body := StaticBody3D.new()
+			body.position = dp
+			add_child(body)
+			MD.place(body, "drum", Vector3.ZERO, Vector3(0, rng.randf() * 360, 0), Vector3.ONE, [Color(0.5, 0.18, 0.12), Color(0.2, 0.32, 0.45), Color(0.3, 0.35, 0.25)][i % 3])
+			var ds := CylinderShape3D.new()
+			ds.radius = 0.3
+			ds.height = 0.9
+			B.add_shape(body, ds, Vector3(0, 0.45, 0))
+		else:
+			B.cyl(self, 0.3, 0.3, 0.9, dp + Vector3(0, 0.45, 0), M.tinted("rust", Color(0.55, 0.2, 0.15)), true, Vector3.ZERO, 12)
 	# Work lights on poles
 	for lp in [Vector3(12, 0, -2), Vector3(-14, 0, 24), Vector3(28, 0, 24)]:
 		B.cyl(self, 0.08, 0.1, 6.0, lp + Vector3(0, 3.0, 0), M.get_mat("metal"), true, Vector3.ZERO, 8)
 		B.box(self, Vector3(0.5, 0.25, 0.3), lp + Vector3(0, 6.0, 0), M.emissive(Color(1, 0.8, 0.5), 3.0), false)
 		B.spot(self, lp + Vector3(0, 5.9, 0), Vector3(-90, 0, 0), Color(1.0, 0.78, 0.5), 3.0, 16.0, 55.0, false)
+
+
+func _build_props() -> void:
+	# Fallen pines on the forest slope (natural cover)
+	for i in 14:
+		var x := rng.randf_range(-80, 80)
+		var z := rng.randf_range(-105, -40)
+		if absf(x - terrain.road_x_at(z)) < 9.0 or (absf(x) < 5.0 and z > -58.0) or terrain.creek_dist(x, z) < 6.0:
+			continue
+		var body := StaticBody3D.new()
+		body.position = Vector3(x, h(x, z) + 0.05, z)
+		body.rotation.y = rng.randf() * TAU
+		add_child(body)
+		if MD.place(body, "fallen_tree", Vector3.ZERO) == null:
+			B.cyl(body, 0.25, 0.3, 9.0, Vector3(0, 0.3, 0), M.get_mat("bark"), false, Vector3(0, 0, 90))
+		var shape := CylinderShape3D.new()
+		shape.radius = 0.3
+		shape.height = 9.0
+		B.add_shape(body, shape, Vector3(0, 0.3, 0), Vector3(0, 0, 90))
+	# Ferns and undergrowth, thickest along the creek
+	if M.tex("fern_card_albedo") != null:
+		var fern_mat := StandardMaterial3D.new()
+		fern_mat.albedo_texture = M.tex("fern_card_albedo")
+		fern_mat.albedo_color = Color(0.78, 0.82, 0.72)
+		fern_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		fern_mat.alpha_scissor_threshold = 0.4
+		fern_mat.alpha_antialiasing_mode = BaseMaterial3D.ALPHA_ANTIALIASING_ALPHA_TO_COVERAGE
+		fern_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		fern_mat.backlight_enabled = true
+		fern_mat.backlight = Color(0.15, 0.2, 0.1)
+		var xs: Array = []
+		var tries := 0
+		while xs.size() < 2600 and tries < 12000:
+			tries += 1
+			var fx := rng.randf_range(-105, 105)
+			var fz: float = rng.randf_range(-112, -34) if rng.randf() < 0.7 else terrain.creek_z(fx) + rng.randf_range(-7, 7)
+			if absf(fx - terrain.road_x_at(fz)) < 5.0 or terrain.creek_dist(fx, fz) < 2.4:
+				continue
+			if absf(fx) < 3.0 and fz > -46.0:
+				continue
+			var sc := rng.randf_range(0.7, 1.5)
+			xs.append(Transform3D(Basis(Vector3.UP, rng.randf() * TAU).scaled(Vector3(sc, sc, sc)), Vector3(fx, h(fx, fz) - 0.05, fz)))
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = _crossed_quads(1.5, 1.5)
+		mm.instance_count = xs.size()
+		for i in xs.size():
+			mm.set_instance_transform(i, xs[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		mmi.material_override = fern_mat
+		mmi.visibility_range_end = 60.0
+		add_child(mmi)
+	# Wooden footbridge where the access road crosses the creek
+	var brz: float = terrain.creek_z(terrain.road_x_at(-74.0))
+	var brx: float = terrain.road_x_at(brz)
+	var bry: float = terrain.water_level(brx) + 0.95
+	for k in 9:
+		B.box(self, Vector3(8.5, 0.12, 0.7), Vector3(brx, bry, brz - 3.0 + k * 0.72), M.get_mat("wood"))
+	for side in [-1.0, 1.0]:
+		B.box(self, Vector3(0.25, 0.25, 7.0), Vector3(brx + side * 4.0, bry + 0.6, brz), M.get_mat("log"), false)
+	# Pallets and crates by the sawmill
+	for k in 5:
+		MD.place(self, "pallet", Vector3(-20 + k * 1.3, 0.0, 14 + (k % 2) * 1.3), Vector3(0, rng.randf_range(-10, 10), 0))
+	for k in 3:
+		var cp := Vector3(-33 + k * 1.2, 0, 3)
+		var cb := StaticBody3D.new()
+		cb.position = cp
+		add_child(cb)
+		MD.place(cb, "crate", Vector3.ZERO, Vector3(0, rng.randf() * 20, 0))
+		var cs := BoxShape3D.new()
+		cs.size = Vector3(1.1, 1.1, 1.1)
+		B.add_shape(cb, cs, Vector3(0, 0.55, 0))
+	# Concrete barriers and sandbags at the Kranor gate
+	var zf: float = terrain.YARD_Z
+	for bx in [11.0, 29.0]:
+		_solid_model("jersey_barrier", Vector3(bx, 0, zf - 4.0), 90.0, Vector3(3.0, 0.81, 0.6))
+	_solid_model("sandbags", Vector3(31.5, 0, zf - 1.0), 90.0, Vector3(2.4, 0.6, 0.5))
+	_solid_model("sandbags", Vector3(8.5, 0, zf - 1.0), 90.0, Vector3(2.4, 0.6, 0.5))
+
+
+## A model with a simple box collider
+func _solid_model(name: String, pos: Vector3, yaw: float, collider: Vector3) -> void:
+	var body := StaticBody3D.new()
+	body.position = pos
+	body.rotation_degrees.y = yaw
+	add_child(body)
+	if MD.place(body, name, Vector3.ZERO) == null:
+		B.mesh(body, _bm(collider), Vector3(0, collider.y / 2.0, 0), M.get_mat("concrete"))
+	var shape := BoxShape3D.new()
+	shape.size = collider
+	B.add_shape(body, shape, Vector3(0, collider.y / 2.0, 0))
+
+
+func _bm(size: Vector3) -> BoxMesh:
+	var b := BoxMesh.new()
+	b.size = size
+	return b
 
 
 func _log_stack(base: Vector3, material: Material, yaw: float) -> void:

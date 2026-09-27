@@ -10,6 +10,7 @@ const RASKOV_PA := "Raskov (PA)"
 const NIGHTINGALE := "Nightingale 2-1"
 
 var auto_start := true
+var _overheard: Array = []   # {pos, r, lines, done}
 var _heli_t := -1.0
 
 var game
@@ -38,13 +39,55 @@ func _ready() -> void:
 
 func begin() -> void:
 	if step == "":
+		_setup_story()
 		_go("s1_intro")
+
+
+const GUARD := "Guard (overheard)"
+const GUARD2 := "Guard 2 (overheard)"
+
+
+func _setup_story() -> void:
+	game.spawn_intel(Vector3(-26, 0.97, 8), "Shipping manifest", "TIMBERLINE LOGGING CO.  -  night shipments\n\nCrates marked KR-9 go straight to Kranor, NOT to the mill. Do not open them. Do not log them.\nAnyone asking questions answers to Vanguard.\n\n- V.C. Logistics")
+	game.spawn_intel(Vector3(0.9, 9.22, 17.0), "Tower sniper's logbook", "02:40  Convoy through the pass. Four trucks, one jeep. The General rode in the jeep.\n03:15  Orders: shoot anything that moves near the wire. No warnings.\n04:10  Rain again. Searchlight motor keeps sticking.")
+	game.spawn_intel(Vector3(42.8, 0.22, 60.0), "Guard rota note", "QRF sleeps in the admin block.\nGrid test scheduled for 05:00. If the lights go out, it is a DRILL.\n\n(Someone has scrawled underneath: 'unless it isn't')")
+	game.spawn_intel(Vector3(43.3, 4.42, 110.1), "Printed email", "FROM: V. Raskov\nTO: Kranor Admin\n\nSite 9 is ready. The Protocol stays there until the buyer arrives at 07:00.\nKranor keeps the logs as bait. If anyone comes for them, cut the power and let the QRF do its job.")
+	game.spawn_intel(Vector3(7.5, 19.25, 668.0), "Vanguard personnel file", "SUBJECT: MAJ. ELENA VANCE\nStatus: EXPECTED.\n\n'She will come alone and she will not come quietly. Do not underestimate her.'\n- Source: 'H'")
+	game.spawn_intel(Vector3(-2.0, 23.07, 696.3), "Encrypted message on Raskov's console", "DECRYPTED:\n\nPackage inbound. Payment on delivery.\nVance is handled. The leak has been useful.\n\n- H.")
+	_overheard = [
+		{"pos": Vector3(-24, 0, 12), "r": 17.0, "done": false, "lines": [
+			[GUARD, "Why are we guarding logs in the pouring rain?"],
+			[GUARD2, "Those aren't logs going down to Kranor. Keep your mouth shut and your eyes on the wire."]]},
+		{"pos": Vector3(26, 0, 80), "r": 16.0, "done": false, "lines": [
+			[GUARD, "The General's moving the drive to Site 9 tonight."],
+			[GUARD2, "Site 9? Up the pass? Then why are we still sitting in this dump?"],
+			[GUARD, "Because someone is coming for the logs. The General said so. Like he knew."]]},
+		{"pos": Vector3(43, 0, 106), "r": 9.0, "done": false, "lines": [
+			[GUARD, "Command, ground floor is quiet. ...Copy. The QRF stays up top until the grid test."]]},
+		{"pos": Vector3(10, 19, 645), "r": 13.0, "done": false, "lines": [
+			["Technician (overheard)", "Server sync at ninety percent. Once the buyer pays, the Protocol goes live."],
+			[GUARD, "And if that Major gets this far?"],
+			["Technician (overheard)", "Then pray the General is faster than she is."]]},
+	]
+
+
+func _check_overheard() -> void:
+	var p: Vector3 = game.player.global_position
+	for o in _overheard:
+		if o.done or p.distance_to(o.pos) > o.r or game.max_awareness() > 0.5:
+			continue
+		o.done = true
+		var first := true
+		for l in o.lines:
+			say(l[0], l[1], 0.3 if first else 0.5)
+			first = false
 
 
 func _process(delta: float) -> void:
 	_t += delta
 	_step_t += delta
 	_process_radio(delta)
+	_check_overheard()
 	var p = game.player
 	match step:
 		"s1_intro":
@@ -161,7 +204,7 @@ func _go(new_step: String) -> void:
 			game.player.add_shake(1.2)
 			hud.title("SEGMENT 3", "The Ambush and Comms Jam     |     The Admin Block")
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
-			say(VANCE, "Download complete. Overwatch, I have the logs-", 0.2, true)
+			say(VANCE, "Download complete. Reyes, the logs point to Site 9, Raskov's bunker up the pass. The Protocol isn't here-", 0.2, true)
 			say(OVERWATCH, "Vance, the grid just went- that wasn't us. Vanguard QRF is on the stairs!", 0.3, false, true)
 			hud.hint("COMMS JAMMED", 4.0)
 			say(RASKOV_PA, "Major Vance. Did you really think I would leave my logs unguarded?", 3.0)
@@ -180,6 +223,8 @@ func _go(new_step: String) -> void:
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
 			say(OVERWATCH, "-ance, do you read? ...stairwell's collapsing below the second floor...", 0.5, false, true)
 			say(OVERWATCH, "Get down to the second storey. The transformer blast took out the west windows. That's your exit.")
+			say(OVERWATCH, "Vance... they were waiting for you. Somebody tipped them off.", 1.5)
+			say(VANCE, "Then we find out who. After we get out of here.")
 			hud.set_objective("Fight your way down to the second storey", Vector3(47.5, game.seg2.FLOOR_H + 1.2, 114.5))
 		"s3_catwalk":
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
@@ -229,6 +274,8 @@ func _go(new_step: String) -> void:
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y)
 			say(VANCE, "At the command center door. It's quiet. Too quiet.", 0.3, true)
 			say(OVERWATCH, "Plant the charge. On your go, Major.")
+			say(RASKOV_PA, "You can still walk away, Major. The Protocol ends wars. Whoever holds it, nobody dares fight them.", 1.5)
+			say(VANCE, "That's not peace, Raskov. That's a leash.")
 			hud.set_objective("Breach the command center", game.seg5.BREACH_POS + Vector3(0, 1.6, -0.4))
 		"s5_raskov":
 			hud.prompt("")
@@ -238,6 +285,7 @@ func _go(new_step: String) -> void:
 			game.set_checkpoint(game.player.global_position, game.player.rotation.y, false)
 			say(VANCE, "Raskov is down.", 1.0, true)
 			say(OVERWATCH, "...Good. The Protocol is in the vault behind the command center. Get it.", 0.3)
+			say(OVERWATCH, "And check his console on the way. I want to know who tipped him off.")
 			hud.set_objective("Open the vault", game.seg5.VAULT_POS + Vector3(0, 1.7, -0.5))
 		"s5_drive":
 			hud.prompt("")
@@ -463,6 +511,7 @@ func on_seg4_event(name: String) -> void:
 			say(OVERWATCH, "Bridge coming up. It's older than both of us. Hang on!", 0.0, true)
 		"techs2":
 			say(OVERWATCH, "Two more coming up fast behind us!", 0.0, true)
+			say(OVERWATCH, "Argh! I'm hit... I'm okay, I can still drive! Keep them off us!", 2.5)
 			say("Raskov (intercept)", "All units: stop that truck. I don't care what it costs.", 1.0)
 		"tunnel":
 			say(OVERWATCH, "Tunnel's collapsed! Taking the old service road around it!", 0.0, true)

@@ -32,7 +32,32 @@ func road_x_at(z: float) -> float:
 	return ROAD_X
 
 
+## The creek winds across the forest slope from west to east
+func creek_z(x: float) -> float:
+	return -74.0 + sin(x * 0.05) * 7.0 + sin(x * 0.013 + 1.0) * 5.0
+
+
+func creek_dist(x: float, z: float) -> float:
+	return absf(z - creek_z(x))
+
+
 func height_at(x: float, z: float) -> float:
+	return _base_height(x, z) - _creek_cut(x, z)
+
+
+func _creek_cut(x: float, z: float) -> float:
+	var d := creek_dist(x, z)
+	if d > 3.5:
+		return 0.0
+	var t := 1.0 - d / 3.5
+	return t * t * 1.3
+
+
+func water_level(x: float) -> float:
+	return _base_height(x, creek_z(x)) - 0.75
+
+
+func _base_height(x: float, z: float) -> float:
 	var h := 0.0
 	var forest := 0.0
 	if z < -10.0:
@@ -57,6 +82,8 @@ func height_at(x: float, z: float) -> float:
 
 
 func surface_at(pos: Vector3) -> String:
+	if pos.z < -50.0 and creek_dist(pos.x, pos.z) < 2.2:
+		return "mud"   # wading through the creek
 	if pos.z > YARD_Z - 2.0 and pos.y < 1.0:
 		return "hard"
 	if absf(pos.x - road_x_at(pos.z)) < ROAD_HALF and pos.z < YARD_Z:
@@ -111,6 +138,66 @@ func _ready() -> void:
 	# HeightMapShape3D is centred on its origin
 	cs.position = Vector3((X_MIN + X_MAX) / 2.0, 0, (Z_MIN + Z_MAX) / 2.0)
 	body.add_child(cs)
+	_build_creek()
+
+
+func _build_creek() -> void:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var prev := []
+	var x := X_MIN + 8.0
+	var u := 0.0
+	while x < X_MAX - 8.0:
+		var cz := creek_z(x)
+		var wl := water_level(x)
+		var cur := [Vector3(x, wl, cz - 2.6), Vector3(x, wl, cz + 2.6), u]
+		if not prev.is_empty():
+			for v in [[prev[0], Vector2(prev[2], 0)], [cur[0], Vector2(u, 0)], [cur[1], Vector2(u, 1)], [prev[0], Vector2(prev[2], 0)], [cur[1], Vector2(u, 1)], [prev[1], Vector2(prev[2], 1)]]:
+				st.set_normal(Vector3.UP)
+				st.set_uv(v[1])
+				st.add_vertex(v[0])
+		prev = cur
+		x += 2.0
+		u += 0.4
+	st.generate_tangents()
+	var mi := MeshInstance3D.new()
+	mi.mesh = st.commit()
+	var tex := M.tex("mud_normal")
+	if tex:
+		var sm := ShaderMaterial.new()
+		sm.shader = load("res://shaders/water.gdshader")
+		sm.set_shader_parameter("normal_a", tex)
+		mi.material_override = sm
+	else:
+		var wm := StandardMaterial3D.new()
+		wm.albedo_color = Color(0.07, 0.1, 0.09, 0.8)
+		wm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		wm.roughness = 0.05
+		mi.material_override = wm
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	# Low mist hanging over the water (volumetric fog volumes)
+	for mx in [-70.0, -30.0, 10.0, 50.0, 90.0]:
+		var fv := FogVolume.new()
+		fv.size = Vector3(36, 3.0, 12)
+		fv.position = Vector3(mx, water_level(mx) + 1.0, creek_z(mx))
+		var fm := FogMaterial.new()
+		fm.density = 0.06
+		fm.albedo = Color(0.8, 0.83, 0.85)
+		fm.height_falloff = 0.8
+		fv.material = fm
+		add_child(fv)
+	# Water sound along the creek
+	for sx in [-60.0, 0.0, 60.0]:
+		var snd := AudioStreamPlayer3D.new()
+		snd.stream = load("res://scripts/sfx.gd").get_stream("wind")
+		snd.pitch_scale = 2.6
+		snd.volume_db = -6.0
+		snd.unit_size = 5.0
+		snd.max_distance = 45.0
+		snd.position = Vector3(sx, water_level(sx), creek_z(sx))
+		snd.autoplay = true
+		add_child(snd)
 
 
 func _terrain_material() -> Material:
@@ -138,6 +225,8 @@ func _weights_at(x: float, z: float, h: float) -> Color:
 		w.r = clampf((ROAD_HALF + 0.8 - road_d) / 1.6, 0.0, 1.0)
 		if absf(x) < 5.0 and absf(z - FENCE_Z) < 5.0:
 			w.r = maxf(w.r, clampf((5.0 - Vector2(x, z - FENCE_Z).length()) / 2.0, 0.0, 1.0))
+	if z < -50.0:
+		w.r = maxf(w.r, clampf((3.8 - creek_dist(x, z)) / 1.5, 0.0, 1.0))
 	# Steep ground and the mountains are bare rock
 	var dx := height_at(x + 1.0, z) - height_at(x - 1.0, z)
 	var dz := height_at(x, z + 1.0) - height_at(x, z - 1.0)

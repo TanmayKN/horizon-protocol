@@ -14,6 +14,8 @@ extends Node3D
 const B := preload("res://scripts/build.gd")
 const M := preload("res://scripts/mats.gd")
 const S := preload("res://scripts/sfx.gd")
+const MD := preload("res://scripts/models.gd")
+const Ladder := preload("res://scripts/world/ladder.gd")
 
 const ADMIN_MIN := Vector3(36, 0, 100)
 const ADMIN_MAX := Vector3(52, 0, 116)
@@ -42,6 +44,8 @@ var _hum: AudioStreamPlayer3D
 var _alarm: AudioStreamPlayer
 var _t := 0.0
 var _catwalk_rects: Array = []   # [x0, x1, z0, z1]
+var _cont_x: Array = []          # container transforms (drawn with MultiMesh)
+var _cont_c: Array = []
 
 
 func _ready() -> void:
@@ -131,6 +135,11 @@ func _build_containers() -> void:
 			_container_stack(Vector3(cx, 0, row_z + 2.44 + 1.6), 1, colors[rng.randi() % colors.size()], 90.0)
 		row_z += 2.44 + 3.2
 		row += 1
+	if not _cont_x.is_empty():
+		MD.multi(self, "container", _cont_x, _cont_c)
+	# A ladder up onto the container stacks for a sniper's view of the yard
+	_container_stack(Vector3(-12, 0, 41.5), 2, Color(0.45, 0.46, 0.47), 0.0)
+	Ladder.create(self, Vector3(-12, 0, 40.2), 5.2, 180.0)
 	B.label3d(self, "KRANOR  LOGISTICS", Vector3(-30, 7.5, 44.9), 160, Color(0.9, 0.9, 0.85), Vector3(0, 180, 0))
 
 
@@ -140,8 +149,16 @@ func _container_stack(base: Vector3, count: int, color: Color, yaw: float) -> vo
 	body.position = base
 	body.rotation_degrees.y = yaw
 	add_child(body)
+	var use_model := MD.available("container")
 	for i in count:
 		var c := color if i == 0 else color.lerp(Color(rng.randf(), rng.randf(), rng.randf()), 0.6).darkened(0.2)
+		if use_model:
+			var t := Transform3D(Basis(Vector3.UP, deg_to_rad(yaw)), base + Vector3(0, i * size.y, 0))
+			if rng.randf() < 0.5:
+				t = t * Transform3D(Basis(Vector3.UP, PI), Vector3.ZERO)   # doors at either end
+			_cont_x.append(t)
+			_cont_c.append(c)
+			continue
 		var mat := M.tinted("corrugated", c)
 		B.mesh(body, _box_mesh(size), Vector3(0, size.y / 2.0 + i * size.y, 0), mat, Vector3(0, 0, 0))
 		# Door end details
@@ -195,6 +212,19 @@ func _build_warehouse() -> void:
 			if rng.randf() < 0.8:
 				_rack(Vector3(rx, 0, rz), rack, crate)
 			rz += 4.2
+	# Pallets, drums and crates on the warehouse floor
+	for k in 10:
+		MD.place(self, "pallet", Vector3(40 + (k % 5) * 1.4, 0, 60 + floorf(k / 5.0) * 1.4), Vector3(0, rng.randf_range(-8, 8), 0))
+	for k in 8:
+		var dp := Vector3(70 + (k % 3) * 0.7, 0, 90 + floorf(k / 3.0) * 0.7)
+		var db := StaticBody3D.new()
+		db.position = dp
+		add_child(db)
+		MD.place(db, "drum", Vector3.ZERO, Vector3(0, rng.randf() * 360, 0), Vector3.ONE, [Color(0.2, 0.3, 0.5), Color(0.55, 0.45, 0.1)][k % 2])
+		var ds := CylinderShape3D.new()
+		ds.radius = 0.3
+		ds.height = 0.9
+		B.add_shape(db, ds, Vector3(0, 0.45, 0))
 	# Forklift
 	var fy := M.tinted("rust", Color(0.85, 0.6, 0.1))
 	B.box(self, Vector3(1.3, 1.4, 2.4), Vector3(62, 0.9, 64), fy)
@@ -405,10 +435,15 @@ func _build_halogens() -> void:
 	var metal := M.get_mat("metal")
 	for p in [Vector3(4, 0, 50), Vector3(-30, 0, 88), Vector3(6, 0, 118), Vector3(-10, 0, 140), Vector3(26, 0, 150), Vector3(-44, 0, 126), Vector3(30, 0, 60), Vector3(8, 0, 176)]:
 		B.cyl(self, 0.12, 0.18, 12.0, p + Vector3(0, 6, 0), metal, true, Vector3.ZERO, 8)
-		B.box(self, Vector3(2.2, 0.8, 0.3), p + Vector3(0, 12.1, 0), metal, false)
-		var lamp := M.emissive(Color(1, 0.98, 0.92), 6.0).duplicate()
-		B.box(self, Vector3(2.0, 0.6, 0.05), p + Vector3(0, 12.1, -0.18), lamp, false)
-		yard_emissive.append(lamp)
+		var yaw_h := rng.randf() * 360.0
+		if MD.available("floodlight_head"):
+			MD.place(self, "floodlight_head", p + Vector3(0, 12.1, 0), Vector3(-20, yaw_h, 0))
+			yard_emissive.append(MD.material_for("lamp_glass", Color.WHITE))
+		else:
+			B.box(self, Vector3(2.2, 0.8, 0.3), p + Vector3(0, 12.1, 0), metal, false)
+			var lamp := M.emissive(Color(1, 0.98, 0.92), 6.0).duplicate()
+			B.box(self, Vector3(2.0, 0.6, 0.05), p + Vector3(0, 12.1, -0.18), lamp, false)
+			yard_emissive.append(lamp)
 		var yaw := rng.randf() * 360.0
 		var sp := B.spot(self, p + Vector3(0, 12.0, 0), Vector3(-62, yaw, 0), Color(1, 0.97, 0.9), 9.0, 38.0, 42.0, true)
 		sp.light_volumetric_fog_energy = 2.0

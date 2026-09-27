@@ -4,6 +4,7 @@ extends Node3D
 const B := preload("res://scripts/build.gd")
 const M := preload("res://scripts/mats.gd")
 const S := preload("res://scripts/sfx.gd")
+const MD := preload("res://scripts/models.gd")
 
 const MAG_SIZE := 30
 const FIRE_INTERVAL := 0.09
@@ -43,6 +44,9 @@ func _ready() -> void:
 	var metal := M.get_mat("gun_metal")
 	var poly := M.get_mat("gun_polymer")
 	var glove := M.get_mat("gear")
+	if MD.available("rifle"):
+		_build_blender_rifle(glove)
+		return
 	var parts: Array = [
 		B.box(model, Vector3(0.058, 0.08, 0.32), Vector3(0, 0, 0), metal, false),
 		B.box(model, Vector3(0.056, 0.062, 0.26), Vector3(0, -0.003, -0.29), poly, false),
@@ -85,6 +89,45 @@ func _ready() -> void:
 	fmat.albedo_color = Color(1, 0.7, 0.3, 0.8)
 	flash_mesh.material_override = fmat
 	flash_mesh.visible = false
+
+
+var _blender := false
+
+
+func _build_blender_rifle(glove: Material) -> void:
+	_blender = true
+	var r := MD.place(model, "rifle", Vector3.ZERO)
+	for mi in r.find_children("*", "MeshInstance3D", true, false):
+		(mi as MeshInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Gloved hands on the grip and the front grip
+	for hp in [[Vector3(0.012, -0.1, 0.075), Vector3(0.06, 0.07, 0.09)], [Vector3(0.0, -0.075, -0.33), Vector3(0.07, 0.06, 0.1)]]:
+		var hand := B.box(model, hp[1], hp[0], glove, false)
+		(hand as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var dot := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = 0.0015
+	sm.height = 0.003
+	dot.mesh = sm
+	dot.material_override = M.emissive(Color(1, 0.1, 0.05), 6.0)
+	dot.position = Vector3(0, 0.086, -0.045)
+	model.add_child(dot)
+	muzzle = Node3D.new()
+	muzzle.position = Vector3(0, 0.006, -0.8)
+	model.add_child(muzzle)
+	flash_light = B.omni(muzzle, Vector3.ZERO, Color(1, 0.75, 0.4), 0.0, 6.0)
+	var fm := QuadMesh.new()
+	fm.size = Vector2(0.09, 0.09)
+	flash_mesh = B.mesh(muzzle, fm, Vector3(0, 0, -0.03), M.emissive(Color(1, 0.7, 0.3), 4.0), Vector3.ZERO, false)
+	var fmat: StandardMaterial3D = flash_mesh.material_override.duplicate()
+	fmat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fmat.albedo_color = Color(1, 0.7, 0.3, 0.8)
+	flash_mesh.material_override = fmat
+	flash_mesh.visible = false
+
+
+func _ads_pos() -> Vector3:
+	return Vector3(0.0, -0.086 * 0.82, -0.2) if _blender else ADS_POS
 
 
 func ads_fov() -> float:
@@ -167,7 +210,7 @@ func _process(delta: float) -> void:
 
 	# Viewmodel pose
 	_ads_blend = lerpf(_ads_blend, 1.0 if player.aiming else 0.0, clampf(14.0 * delta, 0.0, 1.0))
-	var target := HIP_POS.lerp(ADS_POS, _ads_blend)
+	var target := HIP_POS.lerp(_ads_pos(), _ads_blend)
 	var rot := Vector3.ZERO
 	if player.sprinting and move_speed > 3.0:
 		target = SPRINT_POS
