@@ -80,6 +80,7 @@ var _walk_phase := 0.0
 
 
 func _ready() -> void:
+	collision_mask = 1 | 512   # 512 = invisible walls that only stop the player
 	capsule = CapsuleShape3D.new()
 	capsule.radius = 0.32
 	col = CollisionShape3D.new()
@@ -379,7 +380,11 @@ func _physics_process(delta: float) -> void:
 	# Landing
 	if is_on_floor() and not _was_on_floor:
 		_land_dip = clampf(_fall_speed * 0.035, 0.03, 0.3)
-		_play_step(clampf(_fall_speed / 6.0, 0.3, 1.0) * 6.0)
+		if _fall_speed > 4.0:
+			var lk := surface if surface in ["mud", "hard", "metal", "gravel"] else "grass"
+			S.play2d(self, "land_" + lk, clampf(-12.0 + _fall_speed, -12.0, -2.0), 0.05)
+		else:
+			_play_step(3.0)
 		if _fall_speed > 14.0:
 			take_damage((_fall_speed - 14.0) * 8.0, global_position)
 		_fall_speed = 0.0
@@ -514,6 +519,8 @@ func _play_step(extra_db: float) -> void:
 	if sprinting:
 		vol = -4.0
 	S.play3d(self, sound, global_position, vol + extra_db, 0.07)
+	if (sprinting or randf() < 0.25) and randf() < 0.5:
+		S.play2d(self, "cloth", -20.0 if not sprinting else -15.0, 0.1)   # gear and cloth rustling
 
 
 func add_recoil(pitch: float, yaw: float) -> void:
@@ -527,7 +534,7 @@ func add_shake(amount: float) -> void:
 
 
 func take_damage(amount: float, from_pos: Vector3) -> void:
-	if is_dead or (game and game.god_mode):
+	if is_dead or (game and (game.god_mode or game.cutscene_active)):
 		return
 	health -= amount * (game.difficulty_mult if game else 1.0)
 	_since_damage = 0.0

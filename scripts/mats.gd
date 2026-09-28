@@ -197,11 +197,18 @@ static func _make_hi(name: String) -> StandardMaterial3D:
 				m.metallic = 0.35
 			return m
 		"corrugated":
-			var m := pbr("painted_metal", Color(0.72, 0.74, 0.75), Vector3(0.3, 0.3, 0.3), true)
+			var m := pbr("corrugated", Color(0.9, 0.92, 0.93), Vector3(0.3, 0.3, 0.3), true, 1.4)
+			if m == null:
+				m = pbr("painted_metal", Color(0.72, 0.74, 0.75), Vector3(0.3, 0.3, 0.3), true)
+				if m:
+					m.normal_texture = corrugated_normal()
 			if m:
-				m.normal_texture = corrugated_normal()
-				m.metallic = 0.5
+				m.metallic = 0.55
 			return m
+		"meadow":
+			return pbr("meadow", Color.WHITE, Vector3(0.12, 0.12, 0.12), true, 1.0)
+		"runway":
+			return pbr("runway", Color.WHITE, Vector3(0.12, 0.12, 0.12), true, 1.0)
 		"concrete":
 			return pbr("concrete", Color.WHITE, Vector3(0.2, 0.2, 0.2), true, 1.0)
 		"asphalt":

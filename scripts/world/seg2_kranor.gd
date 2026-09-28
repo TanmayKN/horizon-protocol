@@ -535,9 +535,7 @@ func _truck(p: Vector3, yaw: float) -> void:
 	var tint: Color = tints[int(absf(p.z)) % tints.size()]
 	if MD.place(body, "supply_truck", Vector3(0.6, 0, 0), Vector3(0, 90, 0), Vector3.ONE, tint) == null:
 		B.mesh(body, _box_mesh(Vector3(9.0, 3.0, 2.5)), Vector3(1.0, 2.6, 0), M.tinted("uniform", tint))
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(9.6, 3.3, 2.6)
-	B.add_shape(body, shape, Vector3(0, 1.65, 0))
+	B.truck_shapes(body, Transform3D(Basis(Vector3.UP, deg_to_rad(90.0)), Vector3(0.6, 0, 0)))
 
 
 # ------------------------------------------------------------------ generators / storage
@@ -670,8 +668,83 @@ func start_blackout() -> void:
 	for i in 5:
 		B.box(self, Vector3(rng.randf_range(0.8, 1.6), rng.randf_range(0.6, 1.2), rng.randf_range(0.8, 1.6)), Vector3(46.3 + rng.randf_range(-0.4, 0.4), FLOOR_H - 0.6 + i * 0.2, 112.2 + rng.randf_range(-0.8, 0.8)), rubble, true, Vector3(rng.randf() * 40, rng.randf() * 90, rng.randf() * 40))
 	B.box(self, Vector3(1.7, 1.6, 1.4), Vector3(46.25, FLOOR_H - 0.4, 113.0), rubble)   # collapsed flight: blocks the way down
-	B.box(self, Vector3(0.2, 2.4, 2.0), Vector3(36, 1.2, 105), M.tinted("metal", Color(0.4, 0.1, 0.08)))   # locked door
-	B.box(self, Vector3(2.0, 2.4, 0.2), Vector3(45, 1.2, 100), M.tinted("metal", Color(0.4, 0.1, 0.08)))   # locked door
+	# The stairwell below the middle floor caves in completely: a slab of rubble fills the hole
+	B.box(self, Vector3(3.5, 0.5, 8.65), Vector3(47.2, FLOOR_H - 0.25, 110.35), rubble)
+	for i in 6:
+		B.box(self, Vector3(rng.randf_range(0.4, 0.9), rng.randf_range(0.15, 0.35), rng.randf_range(0.4, 0.9)), Vector3(rng.randf_range(45.8, 46.8), FLOOR_H + 0.08, rng.randf_range(106.8, 111.5)), rubble, false, Vector3(rng.randf() * 20, rng.randf() * 90, rng.randf() * 20))
+	lockdown()
+
+
+## POWER FAILURE LOCKDOWN: steel shutters slam down over every door out of the admin block
+var shutters := {}
+var _catwalk_block: Node3D
+
+
+func lockdown() -> void:
+	_shutter("west", Vector3(0.12, 2.4, 2.0), Vector3(ADMIN_MIN.x, 1.2, 105))           # ground floor, loading-bay door
+	_shutter("south", Vector3(2.0, 2.4, 0.12), Vector3(45, 1.2, ADMIN_MIN.z))            # ground floor, door into W1
+	_shutter("catwalk", Vector3(2.0, 2.4, 0.12), Vector3(41, FLOOR_H + 1.2, ADMIN_MIN.z)) # middle floor, catwalk door
+	for k in shutters:
+		close_shutter(k, 0.4 + randf() * 0.6)
+
+
+func _shutter(key: String, size: Vector3, closed_pos: Vector3) -> void:
+	var body := StaticBody3D.new()
+	add_child(body)
+	body.position = closed_pos + Vector3(0, 2.45, 0)
+	var steel := M.tinted("corrugated", Color(0.45, 0.42, 0.38))
+	B.mesh(body, _box_mesh(size), Vector3.ZERO, steel)
+	var strip := size
+	strip.y = 0.18
+	strip.x += 0.01 if size.x < 0.5 else 0.0
+	strip.z += 0.01 if size.z < 0.5 else 0.0
+	B.mesh(body, _box_mesh(strip), Vector3(0, -size.y / 2.0 + 0.09, 0), M.get_mat("hazard"))
+	var shape := BoxShape3D.new()
+	shape.size = size
+	B.add_shape(body, shape, Vector3.ZERO)
+	body.visible = false
+	body.set_meta("closed", closed_pos)
+	shutters[key] = body
+
+
+func close_shutter(key: String, delay := 0.0) -> void:
+	var body: Node3D = shutters.get(key)
+	if body == null:
+		return
+	var closed: Vector3 = body.get_meta("closed")
+	var tw := body.create_tween()
+	tw.tween_interval(delay)
+	tw.tween_callback(func():
+		body.visible = true
+		S.play3d(self, "door", closed, 4.0))
+	tw.tween_property(body, "position", closed, 1.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tw.tween_callback(func(): S.play3d(self, "impact", closed, 2.0))
+
+
+func open_shutter(key: String) -> void:
+	var body: Node3D = shutters.get(key)
+	if body == null:
+		return
+	var closed: Vector3 = body.get_meta("closed")
+	S.play3d(self, "door", closed, 6.0)
+	var tw := body.create_tween()
+	tw.tween_property(body, "position", closed + Vector3(0, 2.45, 0), 1.0)
+
+
+## The QRF forces the catwalk door open. They can come in; Vance still can't go out that way.
+func breach_catwalk_door() -> void:
+	open_shutter("catwalk")
+	_explosion_fx(CATWALK_DOOR + Vector3(0, 1.2, -0.5))
+	if _catwalk_block == null:
+		_catwalk_block = B.player_wall(self, Vector3(2.2, 2.6, 0.6), Vector3(41, FLOOR_H + 1.3, ADMIN_MIN.z - 0.1))
+
+
+func reseal_catwalk_door() -> void:
+	close_shutter("catwalk", 1.5)
+	if _catwalk_block:
+		var blk := _catwalk_block
+		_catwalk_block = null
+		get_tree().create_timer(3.0).timeout.connect(blk.queue_free)
 
 
 ## Reyes is under the window: now you can jump

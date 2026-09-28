@@ -852,6 +852,66 @@ def helicopter():
     export("helicopter")
 
 
+def cargo_jet():
+    """Twin-engine private cargo jet (the buyer's plane). Nose toward +Y. ~24 m long, wingspan ~22 m.
+    Fuselage axis at z = 2.7, belly at ~1.2 m. Air-stair door on the left (-X) side at y = 6."""
+    reset()
+    P = "jet_paint"
+    FZ = 2.7
+    # fuselage: long cylinder + nose + tail cone
+    cyl("fuselage", 1.55, 15.0, (0, 0.5, FZ), P, rot=(90, 0, 0), verts=32)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, segments=32, ring_count=16, location=(0, 8.0, FZ - 0.1))
+    nose = bpy.context.active_object
+    nose.scale = (1.55, 3.6, 1.45)
+    bpy.ops.object.transform_apply(scale=True)
+    _finish(nose, P)
+    cyl("tail_cone", 1.55, 6.5, (0, -10.2, FZ + 0.35), P, rot=(90, 0, 0), verts=32, r2=0.45)
+    # cockpit windows + cabin windows + a blue cheat line
+    for sx in (-1, 1):
+        box("cockpit_glass", (0.05, 1.1, 0.42), (sx * 1.05, 9.3, FZ + 0.72), "glass_dark", rot=(0, sx * 35, sx * 18))
+        for i in range(8):
+            cyl("cabin_window", 0.16, 0.05, (sx * 1.53, 5.5 - i * 1.25, FZ + 0.45), "glass_dark", rot=(0, 90, 0), verts=12)
+        box("stripe", (0.03, 17.0, 0.18), (sx * 1.555, 0.5, FZ + 0.05), "stripe")
+    box("windscreen", (1.3, 0.05, 0.5), (0, 10.0, FZ + 0.72), "glass_dark", rot=(-55, 0, 0))
+    # wings (swept) with winglets
+    for sx in (-1, 1):
+        w = box("wing", (9.5, 3.6, 0.28), (sx * 5.9, 0.2, FZ - 0.9), P, 0.03, rot=(0, sx * -3, sx * 16))
+        box("winglet", (0.2, 1.4, 1.5), (sx * 10.6, -1.8, FZ - 0.1), P, 0.02, rot=(0, sx * -12, 0))
+        box("flap", (6.0, 0.7, 0.1), (sx * 5.2, -1.55, FZ - 1.0), "gun_metal", rot=(0, sx * -3, sx * 16))
+        # engine nacelle under the wing
+        cyl("nacelle", 0.78, 3.6, (sx * 4.6, 1.4, FZ - 1.95), P, rot=(90, 0, 0), verts=24)
+        cyl("intake_lip", 0.8, 0.25, (sx * 4.6, 3.25, FZ - 1.95), "metal", rot=(90, 0, 0), verts=24)
+        cyl("intake", 0.62, 0.1, (sx * 4.6, 3.33, FZ - 1.95), "black", rot=(90, 0, 0), verts=24)
+        cyl("fan_hub", 0.2, 0.2, (sx * 4.6, 3.25, FZ - 1.95), "metal", rot=(90, 0, 0), verts=12, r2=0.05)
+        cyl("exhaust", 0.55, 0.6, (sx * 4.6, -0.6, FZ - 1.95), "gun_metal", rot=(90, 0, 0), verts=20, r2=0.42)
+        box("pylon", (0.25, 2.2, 0.8), (sx * 4.6, 1.2, FZ - 1.35), P)
+    # tail: fin + stabilisers
+    box("fin", (0.3, 3.6, 4.2), (0, -11.2, FZ + 2.6), P, 0.03, rot=(-35, 0, 0))
+    box("fin_stripe", (0.32, 1.2, 1.2), (0, -11.6, FZ + 3.0), "stripe", rot=(-35, 0, 0))
+    for sx in (-1, 1):
+        box("stabilizer", (4.2, 1.8, 0.18), (sx * 2.3, -12.4, FZ + 0.6), P, 0.02, rot=(0, sx * -5, sx * 12))
+    # landing gear
+    cyl("nose_strut", 0.08, 1.4, (0, 8.2, 0.75), "gun_metal", verts=10)
+    for sx in (-0.12, 0.12):
+        cyl("nose_wheel", 0.32, 0.18, (sx, 8.2, 0.32), "black", rot=(0, 90, 0), verts=16)
+    for sx in (-1, 1):
+        cyl("main_strut", 0.12, 1.3, (sx * 2.2, -0.8, 0.9), "gun_metal", verts=10)
+        for dy in (-0.35, 0.35):
+            cyl("main_wheel", 0.5, 0.3, (sx * 2.2, -0.8 + dy, 0.5), "black", rot=(0, 90, 0), verts=18)
+    # open door + air stairs on the left side
+    box("door_open", (0.1, 0.9, 1.8), (-1.75, 6.5, FZ + 0.1), P, rot=(0, 0, 60))
+    box("door_hole", (0.04, 0.85, 1.75), (-1.54, 6.0, FZ + 0.05), "black")
+    for i in range(9):
+        z = 0.2 + i * 0.22
+        box("air_step", (0.9, 0.28, 0.06), (-1.9 - (8 - i) * 0.26, 6.0, z), "metal")
+    box("stair_rail", (2.6, 0.04, 0.04), (-2.95, 5.55, 1.6), "metal", rot=(0, 40, 0))
+    box("stair_rail", (2.6, 0.04, 0.04), (-2.95, 6.45, 1.6), "metal", rot=(0, 40, 0))
+    # nav / beacon lights
+    box("nav_red", (0.12, 0.12, 0.12), (-10.8, -1.6, FZ - 0.1), "nav_red")
+    box("nav_green", (0.12, 0.12, 0.12), (10.8, -1.6, FZ - 0.1), "nav_green")
+    export("cargo_jet")
+
+
 # ---------------------------------------------------------------- soldiers (posable)
 
 def _between(name, p1, p2, r1, r2, material, verts=12):
@@ -909,9 +969,14 @@ def _empty(name, loc, parent):
     return e
 
 
-def _soldier(officer=False):
+def _soldier(officer=False, style=""):
+    """style: '' (masked Vanguard soldier), 'vance', 'reyes' (faces visible), 'hale' (Allied colonel)."""
     reset()
     U = "coat" if officer else "uniform"
+    if style == "hale":
+        U = "coat_hale"
+    elif style in ("vance", "reyes"):
+        U = "uniform_allied"
     parts = {}
     # --- pelvis
     objs = [box("hips", (0.34, 0.22, 0.2), (0, 0, 0.94), U, 0.07, segs=4)]
@@ -984,10 +1049,41 @@ def _soldier(officer=False):
     torso = _join("torso", t, (0, 0, 0.98))
     _parent(torso, pelvis)
     # --- head
-    h = [_between("neck", (0, 0, 1.46), (0, 0.01, 1.56), 0.055, 0.05, "balaclava")]
-    h.append(_ball("head", (0, 0.015, 1.64), (0.095, 0.11, 0.12), "balaclava"))
-    h.append(box("eye_slit", (0.13, 0.03, 0.035), (0, 0.105, 1.655), "black", 0.012))
-    if officer:
+    face = style in ("vance", "reyes", "hale")
+    skin_m = "balaclava" if not face else "skin"
+    h = [_between("neck", (0, 0, 1.46), (0, 0.01, 1.56), 0.055 if style != "vance" else 0.047, 0.05 if style != "vance" else 0.042, skin_m)]
+    hs = (0.095, 0.11, 0.12) if style != "vance" else (0.086, 0.1, 0.112)
+    h.append(_ball("head", (0, 0.015, 1.64), hs, skin_m))
+    if not face:
+        h.append(box("eye_slit", (0.13, 0.03, 0.035), (0, 0.105, 1.655), "black", 0.012))
+    else:
+        # simple readable face: eyes, brows, nose, jaw
+        for x in (-0.034, 0.034):
+            h.append(_ball("eye", (x, 0.105 if style != "vance" else 0.097, 1.66), (0.012, 0.008, 0.009), "black", segs=8))
+            h.append(box("brow", (0.035, 0.008, 0.009), (x, 0.108 if style != "vance" else 0.1, 1.681), "hair", 0.003))
+        h.append(_ball("nose", (0, 0.118 if style != "vance" else 0.108, 1.635), (0.013, 0.02, 0.022), "skin", segs=8))
+        h.append(box("mouth", (0.035, 0.006, 0.006), (0, 0.108 if style != "vance" else 0.099, 1.598), "lip", 0.002))
+    if style == "vance":
+        # dark hair pulled back into a bun, comms headset
+        hair = _ball("hair", (0, -0.008, 1.668), (0.094, 0.106, 0.105), "hair")
+        h.append(hair)
+        h.append(_ball("bun", (0, -0.1, 1.66), (0.045, 0.04, 0.045), "hair", segs=10))
+        h.append(cyl("ear_pro", 0.04, 0.03, (0.095, 0.0, 1.63), "gear", rot=(0, 90, 0), verts=12))
+        h.append(box("boom_mic", (0.01, 0.09, 0.01), (0.09, 0.06, 1.6), "black", rot=(0, 0, 25)))
+        h.append(box("headband", (0.2, 0.018, 0.02), (0, 0.0, 1.745), "gear", 0.006))
+    elif style == "reyes":
+        # boonie hat + stubble
+        h.append(cyl("hat_crown", 0.105, 0.09, (0, 0.0, 1.735), "uniform_allied", verts=16))
+        h.append(cyl("hat_brim", 0.17, 0.012, (0, 0.0, 1.7), "uniform_allied", verts=20))
+        h.append(box("stubble", (0.13, 0.05, 0.05), (0, 0.075, 1.575), "hair", 0.02))
+    elif style == "hale":
+        # peaked officer's cap with a gold band, grey temples
+        h.append(cyl("cap_crown", 0.115, 0.07, (0, 0.0, 1.75), "cap_hale", verts=18))
+        h.append(cyl("cap_band", 0.105, 0.03, (0, 0.0, 1.71), "gold", verts=18))
+        h.append(box("cap_peak", (0.17, 0.09, 0.012), (0, 0.11, 1.705), "black", 0.02, rot=(-12, 0, 0)))
+        for x in (-0.09, 0.09):
+            h.append(box("temple", (0.02, 0.05, 0.04), (x, -0.01, 1.67), "hair_grey", 0.01))
+    if officer and style != "hale":
         h.append(_ball("face", (0, 0.03, 1.63), (0.085, 0.1, 0.105), "skin"))
         bpy.ops.mesh.primitive_uv_sphere_add(radius=1.0, segments=16, ring_count=8, location=(0.02, 0.0, 1.73))
         beret = bpy.context.active_object
@@ -995,7 +1091,7 @@ def _soldier(officer=False):
         bpy.ops.object.transform_apply(scale=True)
         h.append(_finish(beret, "beret"))
         h.append(box("brow", (0.12, 0.01, 0.015), (0, 0.105, 1.67), "gear"))
-    else:
+    elif not face:
         bpy.ops.mesh.primitive_uv_sphere_add(radius=0.14, segments=18, ring_count=10, location=(0, 0.0, 1.66))
         helm = bpy.context.active_object
         helm.name = "helmet"
@@ -1074,6 +1170,21 @@ def soldier():
 def raskov():
     _soldier(True)
     _export_rig("raskov")
+
+
+def hale():
+    _soldier(True, "hale")
+    _export_rig("hale")
+
+
+def vance():
+    _soldier(False, "vance")
+    _export_rig("vance")
+
+
+def reyes():
+    _soldier(False, "reyes")
+    _export_rig("reyes")
 
 
 # ---------------------------------------------------------------- electrical
@@ -1203,7 +1314,7 @@ def downpipe():
     export("downpipe")
 
 
-ALL = ["transformer", "power_pole", "rollup_door", "window_frame", "hvac_unit", "wall_lamp", "downpipe", "soldier", "raskov", "supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree", "ak", "dmr", "pistol", "knife", "ammo_can", "intel_folder"]
+ALL = ["cargo_jet", "hale", "vance", "reyes", "transformer", "power_pole", "rollup_door", "window_frame", "hvac_unit", "wall_lamp", "downpipe", "soldier", "raskov", "supply_truck", "technical", "helicopter", "ladder", "rifle", "container", "drum", "pallet", "crate", "jersey_barrier", "sandbags", "floodlight_head", "fallen_tree", "ak", "dmr", "pistol", "knife", "ammo_can", "intel_folder"]
 
 if __name__ == "__main__":
     todo = [a for a in sys.argv[1:] if a in ALL] or ALL

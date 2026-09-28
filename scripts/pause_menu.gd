@@ -142,6 +142,11 @@ func _show_story() -> void:
 	t += "\n[b]WHAT YOU HAVE FOUND[/b]  (intel %d / %d)\n" % [game.intel_found, game.intel_total]
 	if game.story_log.is_empty():
 		t += "Nothing yet. Look for red folders with a blue glow and press F to read them.\n"
+	var left: Array = game.unread_intel_places()
+	if not left.is_empty():
+		t += "\n[color=#8cc8ff][b]WHERE THE REST OF THE INTEL IS[/b][/color]  (a blue INTEL marker shows when you are close)\n"
+		for w in left:
+			t += "  - %s\n" % w
 	for e in game.story_log:
 		t += "\n[color=#f2d98c][b]%s[/b][/color]\n%s\n" % [e["title"], e["body"]]
 	story_text.text = t

@@ -16,6 +16,8 @@ var patrol: Array = []          # Array of Vector3 waypoints
 var is_sniper := false
 var stationary := false
 var health := 100.0
+var armor := 1.0            # damage multiplier (bosses wear body armour)
+var headshot_mult := 4.0
 var state: State = State.PATROL
 var awareness := 0.0            # 0..1 (1 = fully alerted)
 var view_range := 42.0
@@ -39,13 +41,29 @@ var _aim_time := 0.0
 var _search_timer := 0.0
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _flash: OmniLight3D
+# --- tactics (cover, peeking, flanking, grenades)
+var _cap: CapsuleShape3D
+var _cap_node: CollisionShape3D
+var _cover = null           # Vector3 cover spot or null
+var _cover_t := 0.0
+var _cover_check := 0.0
+var _crouch := 0.0          # 0 standing .. 1 crouched (visual + hitbox)
+var _want_crouch := false
+var _peek_t := 0.0
+var _flank_target = null
+var _grenades := 1
+var _unseen_t := 0.0
+var tactics := false        # cover/flank/grenade AI (off: Tanmay prefers the original enemies)
+static var _last_grenade := -100.0
+static var _last_flank := -100.0
+const Grenade := preload("res://scripts/grenade.gd")
 
 
 func _ready() -> void:
-	var cap := CapsuleShape3D.new()
-	cap.radius = 0.35
-	cap.height = 1.8
-	B.add_shape(self, cap, Vector3(0, 0.9, 0))
+	_cap = CapsuleShape3D.new()
+	_cap.radius = 0.35
+	_cap.height = 1.8
+	_cap_node = B.add_shape(self, _cap, Vector3(0, 0.9, 0))
 	_build_model()
 	if is_sniper:
 		view_range = 38.0
@@ -74,7 +92,11 @@ var _torso_base := Vector3.ZERO
 
 
 func _build_model() -> void:
-	var model_name := "raskov" if callsign == "Raskov" else "soldier"
+	var model_name := "soldier"
+	if callsign == "Raskov":
+		model_name = "raskov"
+	elif callsign == "Hale":
+		model_name = "hale"
 	if MD.available(model_name):
 		_build_blender_model(model_name)
 		return
@@ -209,6 +231,10 @@ func _animate(delta: float) -> void:
 	if leg_l == null or state == State.DEAD:
 		return
 	var spd := Vector2(velocity.x, velocity.z).length()
+	_crouch = move_toward(_crouch, 1.0 if (_want_crouch and spd < 0.5) else 0.0, delta * 4.0)
+	if _cap:
+		_cap.height = 1.8 - 0.55 * _crouch
+		_cap_node.position.y = _cap.height / 2.0
 	_walk += delta * spd * 3.6
 	var amt := clampf(spd / 1.8, 0.0, 1.0)
 	var swing := sin(_walk) * amt * 0.75
@@ -217,6 +243,12 @@ func _animate(delta: float) -> void:
 	# knees bend on the back-swing (negative = heel comes up behind)
 	shin_l.rotation.x = -maxf(0.0, -sin(_walk + 0.6)) * amt * 1.1
 	shin_r.rotation.x = -maxf(0.0, sin(_walk + 0.6)) * amt * 1.1
+	if _crouch > 0.01:
+		leg_l.rotation.x = lerpf(leg_l.rotation.x, 1.35, _crouch)
+		leg_r.rotation.x = lerpf(leg_r.rotation.x, 0.5, _crouch)
+		shin_l.rotation.x = lerpf(shin_l.rotation.x, -1.5, _crouch)
+		shin_r.rotation.x = lerpf(shin_r.rotation.x, -2.0, _crouch)
+	body.position.y = -0.5 * _crouch
 	var bob := absf(cos(_walk)) * 0.04 * clampf(spd / 2.5, 0.0, 1.0)
 	if _torso_base != Vector3.ZERO:
 		torso.position = _torso_base + Vector3(0, bob * 0.5, 0)
@@ -275,6 +307,7 @@ func _can_see_player() -> bool:
 		return false
 	var q := PhysicsRayQueryParameters3D.create(eye(), player.eye_position())
 	q.exclude = [get_rid()]
+	q.collision_mask = 0xFFFFFFFF & ~512   # invisible player-only walls don't block their view
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	return hit.is_empty() or hit.collider == player
 
@@ -310,6 +343,9 @@ func _enter_combat() -> void:
 
 func _physics_process(delta: float) -> void:
 	if state == State.DEAD:
+		return
+	if game and game.cutscene_active:
+		velocity = Vector3.ZERO
 		return
 	if not is_on_floor():
 		velocity.y -= _gravity * delta
@@ -395,6 +431,20 @@ func _do_combat(delta: float) -> void:
 		_aim_time = 0.0
 		if laser:
 			laser.visible = false
+		_unseen_t += delta
+		_want_crouch = _cover != null
+		# Vance is hiding: flush her out with a grenade
+		if tactics and not is_sniper and _grenades > 0 and _unseen_t > 2.5 and game:
+			var gd := global_position.distance_to(_last_seen)
+			var now := Time.get_ticks_msec() / 1000.0
+			if gd > 7.0 and gd < 26.0 and now - _last_grenade > 9.0:
+				_last_grenade = now
+				_grenades -= 1
+				_throw_grenade(_last_seen)
+		if _cover != null and _search_timer < 4.0:
+			_search_timer += delta
+			_move_toward(_cover, 3.4)
+			return
 		_search_timer += delta
 		if _search_timer > 6.0:
 			state = State.SEARCH
@@ -403,10 +453,13 @@ func _do_combat(delta: float) -> void:
 			_move_toward(_last_seen, 3.2)
 		return
 	_search_timer = 0.0
+	_unseen_t = 0.0
 
-	# Movement: hold a comfortable distance, strafe between shots
+	# Movement: take cover and peek, or flank; otherwise hold a distance and strafe
 	var dist := global_position.distance_to(player.global_position)
-	if not stationary:
+	if not stationary and tactics and not is_sniper and _tactics(delta, dist):
+		pass
+	elif not stationary:
 		_strafe_timer -= delta
 		if _strafe_timer <= 0.0:
 			_strafe_timer = randf_range(1.0, 2.5)
@@ -432,6 +485,8 @@ func _do_combat(delta: float) -> void:
 			_shoot(45.0, 0.75, "sniper")
 		return
 	_shot_timer -= delta
+	if _crouch > 0.6 and _cover != null:
+		return          # ducked behind cover
 	if _shot_timer <= 0.0:
 		if _burst_left <= 0:
 			_burst_left = randi_range(3, 5)
@@ -469,6 +524,10 @@ func _shoot(damage: float, base_chance: float, sound: String) -> void:
 		player.take_damage(damage, global_position)
 	elif randf() < 0.5:
 		S.play3d(self, "whiz", player.global_position + Vector3(randf_range(-1, 1), 1.5, randf_range(-1, 1)), -4.0)
+	else:
+		# near miss kicks up dirt / chips concrete next to Vance
+		var miss: Vector3 = player.global_position + Vector3(randf_range(-2, 2), 0.1, randf_range(-2, 2))
+		S.play3d(self, "impact_dirt" if game and game.surface_at(miss) in ["grass", "mud", "gravel"] else "impact_concrete", miss, -6.0)
 	# Visible tracer
 	var to: Vector3 = player.eye_position() + Vector3(randf_range(-0.6, 0.6), randf_range(-0.5, 0.3), randf_range(-0.6, 0.6))
 	_tracer(gun_tip.global_position, to)
@@ -523,6 +582,7 @@ func _face(target: Vector3, delta: float, speed: float) -> void:
 func shout(text: String) -> void:
 	if state == State.DEAD:
 		return
+	preload("res://scripts/voice.gd").shout3d(self, text)
 	var l := Label3D.new()
 	l.text = text
 	l.font_size = 48
@@ -554,14 +614,17 @@ func hand_signal() -> void:
 func take_hit(damage: float, hit_pos: Vector3, _dir: Vector3) -> void:
 	if state == State.DEAD:
 		return
-	var headshot := hit_pos.y - global_position.y > 1.52
-	health -= damage * (4.0 if headshot else 1.0)
-	S.play3d(self, "hit", hit_pos, -2.0)
+	var headshot := hit_pos.y - global_position.y > 1.52 - 0.42 * _crouch
+	health -= damage * (headshot_mult if headshot else 1.0) * armor
+	S.play3d(self, "impact_flesh", hit_pos, -2.0)
 	if health <= 0.0:
 		_die(headshot)
 		return
-	# Getting shot means you know where the player is
+	# Getting shot means you know where the player is (and it's time to find cover)
 	alert(player.global_position)
+	_cover_check = 0.0
+	if _cover != null and global_position.distance_to(_cover) < 1.0:
+		_cover_t += 2.5
 	var tw := create_tween()
 	tw.tween_property(body, "rotation_degrees:x", 8.0, 0.06)
 	tw.tween_property(body, "rotation_degrees:x", 0.0, 0.15)
@@ -585,3 +648,134 @@ func _die(headshot: bool) -> void:
 	if game:
 		game.on_enemy_killed(self, headshot)
 	died.emit(self)
+
+
+# ------------------------------------------------------------------ tactics
+
+## Cover-to-cover fighting. Returns true when it handled movement this frame.
+func _tactics(delta: float, dist: float) -> bool:
+	_cover_check -= delta
+	_cover_t += delta
+	# Flanker: swing wide around Vance while the others keep her pinned
+	if _flank_target != null:
+		var ft: Vector3 = _flank_target
+		_want_crouch = false
+		if global_position.distance_to(ft) < 1.2 or _cover_t > 9.0:
+			_flank_target = null
+			_cover = null
+			_cover_check = 0.0
+		else:
+			_move_toward(ft, 4.0)
+			return true
+	if _cover_check <= 0.0:
+		_cover_check = 0.6
+		var exposed := _cover == null or _visible_from_player(_cover + Vector3(0, 0.8, 0))
+		if exposed or _cover_t > randf_range(7.0, 11.0) or (_cover != null and (_cover as Vector3).distance_to(player.global_position) < 4.0):
+			var now := Time.get_ticks_msec() / 1000.0
+			if _cover != null and dist > 10.0 and now - _last_flank > 12.0 and randf() < 0.3 and game and game.alive_enemies().size() >= 3:
+				_last_flank = now
+				_flank_target = _flank_spot()
+				_cover_t = 0.0
+				shout(["FLANKING LEFT!", "FLANKING RIGHT!", "I'M GOING AROUND!"].pick_random())
+				return true
+			var c = _find_cover()
+			if c != null:
+				if _cover == null and randf() < 0.35:
+					shout(["TAKE COVER!", "COVER ME!", "MOVING!"].pick_random())
+				_cover = c
+				_cover_t = 0.0
+	if _cover == null:
+		return false
+	var cv: Vector3 = _cover
+	if Vector2(global_position.x - cv.x, global_position.z - cv.z).length() > 0.6:
+		_want_crouch = false
+		_move_toward(cv, 3.8)
+		return true
+	# At cover: duck, then pop up and shoot
+	_stop()
+	_peek_t -= delta
+	if _peek_t <= 0.0:
+		_want_crouch = not _want_crouch
+		_peek_t = randf_range(1.0, 1.6) if _want_crouch else randf_range(1.6, 2.6)
+		if not _want_crouch:
+			_shot_timer = minf(_shot_timer, 0.25)
+		elif randf() < 0.12:
+			shout("RELOADING!")
+	return true
+
+
+func _visible_from_player(point: Vector3) -> bool:
+	var q := PhysicsRayQueryParameters3D.create(player.eye_position(), point)
+	q.exclude = [player.get_rid(), get_rid()]
+	q.collision_mask = 0xFFFFFFFF & ~512
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	return hit.is_empty()
+
+
+## Nearest spot within ~10 m that hides a crouching body from Vance but lets a standing one see her
+func _find_cover():
+	var space := get_world_3d().direct_space_state
+	var best = null
+	var best_score := 1e9
+	var eye: Vector3 = player.eye_position()
+	for i in 16:
+		var a := i / 16.0 * TAU + randf() * 0.3
+		for r in [3.0, 5.5, 8.5]:
+			var p: Vector3 = global_position + Vector3(sin(a), 0, cos(a)) * r
+			var dq := PhysicsRayQueryParameters3D.create(p + Vector3(0, 1.5, 0), p + Vector3(0, -2.5, 0))
+			dq.exclude = [get_rid()]
+			dq.collision_mask = 1
+			var floor_hit := space.intersect_ray(dq)
+			if floor_hit.is_empty():
+				continue
+			var fp: Vector3 = floor_hit.position
+			if absf(fp.y - global_position.y) > 0.8 or fp.distance_to(player.global_position) < 6.0:
+				continue
+			# can we walk there in a straight line?
+			var pq := PhysicsRayQueryParameters3D.create(global_position + Vector3(0, 0.6, 0), fp + Vector3(0, 0.6, 0))
+			pq.exclude = [get_rid(), player.get_rid()]
+			pq.collision_mask = 1
+			if not space.intersect_ray(pq).is_empty():
+				continue
+			# hidden when crouched?
+			var hq := PhysicsRayQueryParameters3D.create(eye, fp + Vector3(0, 0.8, 0))
+			hq.exclude = [player.get_rid(), get_rid()]
+			hq.collision_mask = 1
+			var h := space.intersect_ray(hq)
+			if h.is_empty() or (h.position as Vector3).distance_to(fp) > 3.0:
+				continue      # nothing close in front of the spot
+			# can shoot when standing?
+			var sq := PhysicsRayQueryParameters3D.create(eye, fp + Vector3(0, 1.6, 0))
+			sq.exclude = [player.get_rid(), get_rid()]
+			sq.collision_mask = 1
+			var peek_ok := space.intersect_ray(sq).is_empty()
+			var score: float = r + (0.0 if peek_ok else 6.0) + absf(fp.distance_to(player.global_position) - 16.0) * 0.15
+			if score < best_score:
+				best_score = score
+				best = fp
+	return best
+
+
+func _flank_spot() -> Vector3:
+	var to: Vector3 = global_position - player.global_position
+	to.y = 0
+	var side: Vector3 = to.normalized().cross(Vector3.UP) * (1.0 if randf() < 0.5 else -1.0)
+	return player.global_position + side * 11.0 + to.normalized() * 6.0
+
+
+func _throw_grenade(target: Vector3) -> void:
+	shout("GRENADE OUT!")
+	arm_raise()
+	var g := Node3D.new()
+	g.set_script(Grenade)
+	g.game = game
+	get_tree().current_scene.add_child(g)
+	g.global_position = global_position + Vector3(0, 1.7, 0)
+	g.throw_at(target + Vector3(randf_range(-1.5, 1.5), 0, randf_range(-1.5, 1.5)))
+
+
+func arm_raise() -> void:
+	if arm_r:
+		var tw := create_tween()
+		tw.tween_property(arm_r, "rotation_degrees:x", -150.0, 0.2)
+		tw.tween_property(arm_r, "rotation_degrees:x", 0.0, 0.4)

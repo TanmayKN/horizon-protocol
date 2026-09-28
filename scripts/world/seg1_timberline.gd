@@ -377,14 +377,19 @@ func _build_fence() -> void:
 	var link := M.get_mat("chainlink")
 	var post := M.get_mat("metal")
 	# Posts either side of the gap (leaning, damaged)
-	B.cyl(self, 0.05, 0.05, 2.8, Vector3(-3.0, h(-3, WIRE_POS.z) + 1.2, WIRE_POS.z), post, true, Vector3(0, 0, 8), 6)
-	B.cyl(self, 0.05, 0.05, 2.8, Vector3(3.0, h(3, WIRE_POS.z) + 1.2, WIRE_POS.z), post, true, Vector3(0, 0, -14), 6)
-	# The sagging wire section that has to be cut
+	B.cyl(self, 0.05, 0.05, 2.8, Vector3(-4.0, h(-4, WIRE_POS.z) + 1.2, WIRE_POS.z), post, true, Vector3(0, 0, 8), 6)
+	B.cyl(self, 0.05, 0.05, 2.8, Vector3(2.0, h(2, WIRE_POS.z) + 1.2, WIRE_POS.z), post, true, Vector3(0, 0, -14), 6)
+	# The sagging wire section that has to be cut (fills the whole gap between the posts at x -4 .. 2)
 	wire_body = StaticBody3D.new()
-	wire_body.position = Vector3(0, h(0, WIRE_POS.z), WIRE_POS.z)
+	wire_body.position = Vector3(-1.0, h(-1, WIRE_POS.z), WIRE_POS.z)
 	add_child(wire_body)
-	B.box(wire_body, Vector3(6.0, 1.6, 0.03), Vector3(0, 0.8, 0), link, false, Vector3(0, 0, 3))
-	B.add_shape(wire_body, _box_shape(Vector3(6.0, 1.6, 0.3)), Vector3(0, 0.8, 0))
+	B.box(wire_body, Vector3(6.1, 1.6, 0.03), Vector3(0, 0.8, 0), link, false, Vector3(0, 0, 3))
+	# (tall + deep so you can't jump over it or crawl under it on the slope)
+	B.add_shape(wire_body, _box_shape(Vector3(6.4, 8.0, 0.4)), Vector3(0, 2.0, 0))
+	(wire_body as StaticBody3D).collision_layer = B.PLAYER_WALL_LAYER
+	# Invisible wall along the whole fence line (and on up the mountains) so the cut is the ONLY way in
+	B.player_wall(self, Vector3(126.0, 120.0, 0.5), Vector3(-67.0, 20.0, WIRE_POS.z))
+	B.player_wall(self, Vector3(128.0, 120.0, 0.5), Vector3(66.0, 20.0, WIRE_POS.z))
 	# A torn panel lying in the mud
 	B.box(self, Vector3(3.0, 2.2, 0.03), Vector3(-5.5, h(-5.5, WIRE_POS.z - 1.5) + 0.2, WIRE_POS.z - 1.5), link, false, Vector3(-82, 15, 0))
 	B.label3d(self, "RESTRICTED AREA\nTIMBERLINE LOGGING CO.", Vector3(8, h(8, WIRE_POS.z) + 1.4, WIRE_POS.z - 0.05), 28, Color(0.85, 0.2, 0.15), Vector3(0, 180, 0))

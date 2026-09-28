@@ -12,7 +12,10 @@ You are **Vance**, a Vanguard operative sent alone into the Kranor mountains to 
 | 2 | **Kranor Logistics Yard** | Get through the container maze, climb the stacks, break into the admin block and download the intel |
 | 3 | **Blackout** | The comms get jammed and the lights go out. Fight your way out along the catwalks and jump from the window |
 | 4 | **The Escape Vector** (Mountain Access Pass) | Ride in the back of the truck shooting the technicals chasing you. When Sgt. Reyes gets hit, **you drive**. Dodge the rockfall |
-| 5 | **Vanguard Command Bunker** | Breach the bunker, reach the server room, face Raskov and get to the helicopter |
+| 5 | **Vanguard Command Bunker** | Breach the bunker, reach the server room, face Raskov and take the drive. Then the helicopter lands... and Colonel Hale steps out |
+| 6 | **The Buyer** (Vostok Airfield, dawn) | Hale betrayed you. Sneak onto his airfield, wreck the tower radar so his jet can't leave, rescue Reyes from Hangar 1, then take down Hale at the jet |
+
+The story has full cutscenes (hold **Space** to skip) and every line is voiced. Find all 8 intel documents for the best ending.
 
 ## Weapons and ammo
 
@@ -91,5 +94,6 @@ You only need this if you want to change the art. Playing the game doesn't need 
 
 Game design, story and direction: **Tanmay (TanmayKN)**
 Built with Godot Engine, Jolt Physics and Blender.
+Voices generated with the Piper text-to-speech engine (LibriTTS voice, CC BY 4.0). Sound effects, music and textures are generated from code in `tools/`.
 
 © 2026 Tanmay. All rights reserved.

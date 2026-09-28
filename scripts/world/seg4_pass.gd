@@ -747,8 +747,6 @@ func dismount() -> Vector3:
 		var body := StaticBody3D.new()
 		body.name = "wreck_body"
 		truck.add_child(body)
-		var shape := BoxShape3D.new()
-		shape.size = Vector3(2.6, 3.0, 9.4)
-		B.add_shape(body, shape, Vector3(0, 1.5, 0))
+		B.truck_shapes(body)
 	var side := truck.global_transform.basis.x
 	return truck.global_position + side * 2.4 + Vector3(0, 0.5, 0)

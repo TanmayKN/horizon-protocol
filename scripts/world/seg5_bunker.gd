@@ -354,8 +354,8 @@ func spawn_helicopter() -> void:
 	search.light_volumetric_fog_energy = 3.0
 	B.omni(heli, Vector3(0, 0.3, 3), Color(1, 0.1, 0.1), 1.0, 5.0)
 	var snd := AudioStreamPlayer3D.new()
-	snd.stream = S.get_stream("engine")
-	snd.pitch_scale = 1.8
+	snd.stream = S.get_stream("helicopter")
+	snd.pitch_scale = 1.0
 	snd.volume_db = 6.0
 	snd.unit_size = 20.0
 	snd.max_distance = 200.0
@@ -395,8 +395,8 @@ func _heli_rotors(model: bool) -> void:
 	search.light_volumetric_fog_energy = 3.0
 	B.omni(heli, Vector3(0, 0.3, 3), Color(1, 0.1, 0.1), 1.0, 5.0)
 	var snd := AudioStreamPlayer3D.new()
-	snd.stream = S.get_stream("engine")
-	snd.pitch_scale = 1.8
+	snd.stream = S.get_stream("helicopter")
+	snd.pitch_scale = 1.0
 	snd.volume_db = 6.0
 	snd.unit_size = 20.0
 	snd.max_distance = 200.0
@@ -429,3 +429,14 @@ func _physics_process(delta: float) -> void:
 	if _rotor:
 		_rotor.rotation.y += delta * 28.0
 		_tail_rotor.rotation.x += delta * 40.0
+
+
+## Hale's helicopter lifts off with Reyes on board and heads for the airfield
+func heli_depart() -> void:
+	if heli == null:
+		return
+	var tw := create_tween()
+	tw.tween_property(heli, "position", heli.position + Vector3(0, 12, 0), 3.0).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(heli, "position", heli.position + Vector3(-80, 45, -120), 7.0)
+	tw.tween_callback(heli.queue_free)
+	tw.tween_callback(func(): heli = null)

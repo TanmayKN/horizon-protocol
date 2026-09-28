@@ -4,7 +4,7 @@ extends RefCounted
 
 
 static func mesh(parent: Node, m: Mesh, pos: Vector3, material: Material, rot_deg := Vector3.ZERO, shadows := true) -> MeshInstance3D:
-	var mi := MeshInstance3D.new()	
+	var mi := MeshInstance3D.new()
 	mi.mesh = m
 	mi.material_override = material
 	mi.position = pos
@@ -168,3 +168,35 @@ static func stairs(parent: Node, bottom: Vector3, top: Vector3, width: float, ma
 	shape.size = Vector3(width, 0.1, slope_len)
 	var cs := add_shape(body, shape, Vector3(0, rise / 2.0, run / 2.0))
 	cs.rotation.x = -atan2(rise, run)
+
+
+## Collision for the 6x6 supply_truck model: the body sits above the wheels, so you can see AND shoot
+## (or crawl) under it between the axles. `xf` = the model's transform inside `body`.
+static func truck_shapes(body: CollisionObject3D, xf := Transform3D.IDENTITY) -> void:
+	# [size, centre] in model space (Godot: +x = side, -z = front)
+	var parts := [
+		[Vector3(2.5, 2.45, 9.3), Vector3(0, 2.08, 0.05)],     # cab + bed + canvas (from 0.85 up)
+		[Vector3(0.45, 0.85, 1.3), Vector3(-1.0, 0.43, -3.3)],  # front wheels
+		[Vector3(0.45, 0.85, 1.3), Vector3(1.0, 0.43, -3.3)],
+		[Vector3(0.45, 0.85, 2.6), Vector3(-0.93, 0.43, 2.25)], # rear tandem
+		[Vector3(0.45, 0.85, 2.6), Vector3(0.93, 0.43, 2.25)],
+	]
+	for p in parts:
+		var s := BoxShape3D.new()
+		s.size = p[0]
+		var cs := CollisionShape3D.new()
+		cs.shape = s
+		cs.transform = xf * Transform3D(Basis.IDENTITY, p[1])
+		body.add_child(cs)
+
+
+## Collision layer for invisible walls that stop only the PLAYER (bullets, enemies and their eyes pass through)
+const PLAYER_WALL_LAYER := 512
+const BULLET_MASK := 0xFFFFFFFF & ~512
+
+
+static func player_wall(parent: Node, size: Vector3, pos: Vector3) -> StaticBody3D:
+	var body := wall(parent, size, pos)
+	body.collision_layer = PLAYER_WALL_LAYER
+	body.collision_mask = 0
+	return body

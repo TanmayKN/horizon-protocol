@@ -77,7 +77,7 @@ func update_fire(delta: float, player) -> void:
 	if _fire_t <= 0.0:
 		_fire_t = randf_range(0.12, 0.2) if randf() < 0.8 else randf_range(1.0, 2.0)
 		_flash.light_energy = 3.0
-		S.play3d(self, "enemy_rifle", gun_tip.global_position, 0.0)
+		S.play3d(self, "mg", gun_tip.global_position, 2.0)
 		var chance := 0.13
 		if player.stance != 0:
 			chance *= 0.55
@@ -108,13 +108,13 @@ func take_hit(damage: float, hit_pos: Vector3, _dir: Vector3) -> void:
 	if gunner_alive and hit_pos.distance_to(gunner.global_position + Vector3(0, 0.8, 0)) < 0.7:
 		gunner_alive = false
 		gunner.visible = false
-		S.play3d(self, "hit", hit_pos, 0.0)
+		S.play3d(self, "impact_flesh", hit_pos, 0.0)
 		if game:
 			game.hud.hint("GUNNER DOWN", 1.2)
 		health -= 60.0
 	else:
 		health -= damage
-		S.play3d(self, "impact", hit_pos, -2.0)
+		S.play3d(self, "impact_metal", hit_pos, -2.0)
 	if health <= 0.0:
 		explode()
 

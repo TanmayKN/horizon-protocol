@@ -3,23 +3,133 @@ extends RefCounted
 ## Usage: const S := preload("res://scripts/sfx.gd")   S.play3d(node, "rifle", pos)
 
 const RATE := 22050
+const DIR := "res://assets/audio/"
+const LOOPS := ["rain", "rain_roof", "wind", "forest", "hum", "bunker", "vent", "engine", "helicopter", "alarm",
+	"music_stealth", "music_combat", "music_menu", "music_boss"]
 static var _cache := {}
+static var _variants := {}
+static var _last := {}
 
 
-static func get_stream(name: String) -> AudioStreamWAV:
-	if not _cache.has(name):
-		_cache[name] = _make(name)
-	return _cache[name]
+## Recorded (offline-synthesised) sounds live in assets/audio/NAME.ogg or NAME_0.ogg, NAME_1.ogg ...
+## (variations are picked at random, never the same one twice in a row). Falls back to the old
+## in-code synth if a file is missing.
+static func _files_for(name: String) -> Array:
+	if _variants.has(name):
+		return _variants[name]
+	var out: Array = []
+	if ResourceLoader.exists(DIR + name + ".ogg"):
+		out.append(DIR + name + ".ogg")
+	else:
+		var k := 0
+		while ResourceLoader.exists(DIR + "%s_%d.ogg" % [name, k]):
+			out.append(DIR + "%s_%d.ogg" % [name, k])
+			k += 1
+	_variants[name] = out
+	return out
+
+
+static func has(name: String) -> bool:
+	return not _files_for(name).is_empty()
+
+
+static func get_stream(name: String) -> AudioStream:
+	var files := _files_for(name)
+	if files.is_empty():
+		if not _cache.has(name):
+			_cache[name] = _make(name)
+		return _cache[name]
+	var i := 0
+	if files.size() > 1:
+		i = randi() % files.size()
+		if _last.get(name, -1) == i:
+			i = (i + 1) % files.size()
+		_last[name] = i
+	var path: String = files[i]
+	if not _cache.has(path):
+		var st: AudioStream = load(path)
+		if name in LOOPS and st is AudioStreamOggVorbis:
+			st = st.duplicate()
+			(st as AudioStreamOggVorbis).loop = true
+		_cache[path] = st
+	return _cache[path]
+
+
+## Audio buses (created once): Music, Ambience, SFX (with a reverb that opens up indoors), Radio
+static func ensure_buses() -> void:
+	if AudioServer.get_bus_index("SFX") >= 0:
+		return
+	for bus in ["Music", "Ambience", "SFX", "Radio", "Voice", "PA"]:
+		AudioServer.add_bus()
+		var i := AudioServer.bus_count - 1
+		AudioServer.set_bus_name(i, bus)
+		AudioServer.set_bus_send(i, "Master")
+	var sfx := AudioServer.get_bus_index("SFX")
+	var rv := AudioEffectReverb.new()
+	rv.room_size = 0.45
+	rv.damping = 0.6
+	rv.wet = 0.0
+	rv.dry = 1.0
+	rv.predelay_msec = 12.0
+	AudioServer.add_bus_effect(sfx, rv)
+	var radio := AudioServer.get_bus_index("Radio")
+	var bpf := AudioEffectBandPassFilter.new()
+	bpf.cutoff_hz = 1800.0
+	AudioServer.add_bus_effect(radio, bpf)
+	var dist := AudioEffectDistortion.new()
+	dist.mode = AudioEffectDistortion.MODE_LOFI
+	dist.drive = 0.3
+	AudioServer.add_bus_effect(radio, dist)
+	var pa := AudioServer.get_bus_index("PA")
+	var pa_rv := AudioEffectReverb.new()
+	pa_rv.room_size = 0.85
+	pa_rv.damping = 0.3
+	pa_rv.wet = 0.35
+	pa_rv.predelay_msec = 40.0
+	AudioServer.add_bus_effect(pa, pa_rv)
+	var pa_bp := AudioEffectBandPassFilter.new()
+	pa_bp.cutoff_hz = 1400.0
+	AudioServer.add_bus_effect(pa, pa_bp)
+	# gentle master limiter so big fights don't clip
+	var lim := AudioEffectHardLimiter.new()
+	lim.ceiling_db = -0.5
+	AudioServer.add_bus_effect(0, lim)
+
+
+## Indoors = more room reverb on gunshots and footsteps
+static func set_indoor(amount: float) -> void:
+	var sfx := AudioServer.get_bus_index("SFX")
+	if sfx < 0:
+		return
+	var rv := AudioServer.get_bus_effect(sfx, 0) as AudioEffectReverb
+	if rv:
+		rv.wet = lerpf(rv.wet, amount * 0.22, 0.2)
+
+
+static func _bus_for(name: String) -> String:
+	if name.begins_with("music") or name.begins_with("sting"):
+		return "Music"
+	if name in ["rain", "rain_roof", "wind", "forest", "hum", "bunker", "vent", "thunder"]:
+		return "Ambience"
+	return "SFX" if AudioServer.get_bus_index("SFX") >= 0 else "Master"
 
 
 static func play3d(parent: Node, name: String, pos: Vector3, volume_db := 0.0, pitch_jitter := 0.08, max_dist := 120.0) -> void:
 	if parent == null or not parent.is_inside_tree():
 		return
+	var cam := parent.get_viewport().get_camera_3d()
+	var dist := cam.global_position.distance_to(pos) if cam else 0.0
+	# Far-away gunfire uses the muffled, echoey version
+	if dist > 45.0 and has(name + "_far"):
+		name = name + "_far"
 	var p := AudioStreamPlayer3D.new()
 	p.stream = get_stream(name)
 	p.volume_db = volume_db
 	p.max_distance = max_dist
 	p.unit_size = 6.0
+	p.bus = _bus_for(name)
+	p.attenuation_filter_cutoff_hz = 9000.0
+	p.attenuation_filter_db = -12.0
 	p.pitch_scale = 1.0 + randf_range(-pitch_jitter, pitch_jitter)
 	var host: Node = parent.get_tree().current_scene
 	if host == null:
@@ -34,6 +144,7 @@ static func play2d(parent: Node, name: String, volume_db := 0.0, pitch_jitter :=
 	var p := AudioStreamPlayer.new()
 	p.stream = get_stream(name)
 	p.volume_db = volume_db
+	p.bus = _bus_for(name)
 	p.pitch_scale = 1.0 + randf_range(-pitch_jitter, pitch_jitter)
 	parent.add_child(p)
 	p.finished.connect(p.queue_free)
@@ -46,6 +157,7 @@ static func loop2d(parent: Node, name: String, volume_db := 0.0) -> AudioStreamP
 	var p := AudioStreamPlayer.new()
 	p.stream = get_stream(name)
 	p.volume_db = volume_db
+	p.bus = _bus_for(name)
 	parent.add_child(p)
 	p.play()
 	return p
@@ -213,7 +325,7 @@ static func _normalize(b: PackedFloat32Array, peak := 0.9) -> PackedFloat32Array
 	return b
 
 
-static func _make(name: String) -> AudioStreamWAV:
+static func _make(name: String) -> AudioStream:
 	var b: PackedFloat32Array
 	if name.begins_with("step_"):
 		return _wav(_normalize(_step(name.get_slice("_", 1)), 0.95))

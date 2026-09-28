@@ -575,9 +575,93 @@ def clouds():
     print("wrote clouds")
 
 
+def meadow():
+    """Short airfield grass seen from above: dense blades in several greens, dry straw, clover, dirt patches."""
+    soil_n = fnoise(S, S, 2.2, 201)
+    soil = lerp(col(46, 44, 26), col(78, 70, 44), soil_n)
+    patches = np.clip((warp(band(S, S, 0.002, 0.012, 202), 80, 500) - 0.62) * 4, 0, 1)   # worn bare dirt
+    dry = np.clip((warp(band(S, S, 0.003, 0.02, 203), 60, 502) - 0.5) * 3, 0, 1)
+    alb = soil.copy()
+    hgt = soil_n * 0.2
+    for layer, (count, c0, c1, seed, L) in enumerate([(26000, col(48, 68, 26), col(80, 106, 40), 204, 16),
+                                                      (20000, col(70, 96, 36), col(114, 138, 58), 205, 13),
+                                                      (6000, col(140, 128, 74), col(176, 160, 98), 206, 14)]):
+        nh, nc = scatter_lines(S, S, count, L, 2, seed, angle_range=(1.2, 1.95))   # mostly upright-ish blades
+        keep = (1 - patches * 0.9)
+        if layer == 2:
+            keep = keep * dry          # straw only in the dry zones
+        nh = nh * keep
+        ncol = lerp(c0, c1, nc)
+        alb = alb * (1 - nh[..., None] * 0.92) + ncol * nh[..., None] * 0.92
+        hgt = np.maximum(hgt, hgt * 0.5 + nh * (0.5 + layer * 0.1))
+    # clover leaves
+    f1, edge, cid = voronoi(S, S, 2500, 207)
+    pick = ((cid * 2654435761) % 100) < 6
+    clover = np.clip(edge / 4.0, 0, 1) * pick * (1 - patches)
+    alb = lerp(alb, col(60, 96, 40), np.clip(clover * 3, 0, 1) * 0.8)
+    hgt = hgt + np.clip(clover * 3, 0, 1) * 0.2
+    ao = ao_from_height(hgt, 3.0, 2.5)
+    alb = hue_jitter(alb * ao[..., None], 0.16, 208)
+    rough = np.clip(0.86 - np.clip(clover * 3, 0, 1) * 0.2, 0, 1)
+    save("meadow", alb, hgt, rough, 5.0)
+
+
+def corrugated():
+    """Galvanised corrugated sheet: vertical ribs, zinc sheen, rust bleeding from the fixings, grime."""
+    yy, xx = np.mgrid[0:S, 0:S].astype(np.float32)
+    ribs = np.sin(xx / S * np.pi * 2 * 16) * 0.5 + 0.5                      # 16 ribs per tile
+    zinc = lerp(col(150, 156, 158), col(196, 200, 200), fnoise(S, S, 2.4, 211) * 0.6 + ribs * 0.4)
+    spangle = voronoi(S, S, 1400, 212)[2]
+    zinc = zinc * (0.93 + ((spangle * 7919 % 17) / 17.0)[..., None] * 0.1)
+    streaks = band(S, S, 0.005, 0.06, 213, aniso=(1.0, 0.04))
+    rust_zone = np.clip((warp(band(S, S, 0.002, 0.015, 214), 50, 510) - 0.52) * 3.5, 0, 1)
+    rust = lerp(col(98, 52, 28), col(160, 92, 48), band(S, S, 0.05, 0.3, 215))
+    run = np.clip((streaks - 0.55) * 3, 0, 1) * (0.4 + rust_zone * 0.6)
+    alb = lerp(zinc, rust, np.clip(rust_zone * 0.55 + run * 0.6, 0, 1))
+    grime = np.clip((band(S, S, 0.003, 0.03, 216, aniso=(1.0, 0.15)) - 0.5) * 2, 0, 1)
+    alb = lerp(alb, col(70, 68, 62), grime * 0.35)
+    # screw heads in rows (rust halo around each)
+    holes = np.zeros((S, S), np.float32)
+    for yrow in (S // 8, S // 2 + S // 8):
+        for k in range(16):
+            cx = int((k + 0.5) / 16 * S)
+            holes[yrow - 3:yrow + 3, cx - 3:cx + 3] = 1.0
+    halo = np.clip(blur(holes, 5) * 14, 0, 1)
+    alb = lerp(alb, rust, halo * 0.45)
+    alb = lerp(alb, col(40, 40, 40), holes)
+    alb = hue_jitter(alb, 0.06, 217)
+    hgt = ribs * 0.5 - holes * 0.2 + rust_zone * 0.05
+    rough = np.clip(0.45 + rust_zone * 0.4 + grime * 0.1, 0, 1)
+    save("corrugated", alb, hgt, rough, 3.0)
+
+
+def runway():
+    """Runway / apron asphalt: lighter, sun-bleached, rubber skid marks, patched squares, oil stains."""
+    f1, edge, cid = voronoi(S, S, 26000, 221)
+    agg = np.clip(edge / 2.0, 0, 1)
+    dome = np.sqrt(np.clip(agg * (2 - agg), 0, 1)) * (((cid * 2654435761) % 100) < 55)
+    shade = (cid * 7919 % 89) / 89.0
+    binder = lerp(col(52, 52, 54), col(74, 74, 76), band(S, S, 0.05, 0.3, 222))
+    stone = lerp(col(90, 88, 86), col(140, 136, 130), shade)
+    alb = lerp(binder, stone, dome * 0.3)
+    alb = alb * (0.85 + band(S, S, 0.002, 0.012, 223)[..., None] * 0.3)
+    skid = np.clip((band(S, S, 0.003, 0.03, 224, aniso=(0.03, 1.0)) - 0.56) * 4, 0, 1)   # long rubber streaks
+    alb = lerp(alb, col(22, 22, 23), skid * 0.6)
+    oil = np.clip((warp(band(S, S, 0.004, 0.03, 225), 40, 520) - 0.72) * 5, 0, 1)
+    alb = lerp(alb, col(28, 27, 26), oil * 0.7)
+    patch = np.zeros((S, S), np.float32)
+    patch[300:520, 610:880] = 1.0
+    patch = blur(warp(patch, 6, 526), 3) * 0.6
+    alb = lerp(alb, alb * 0.72, patch)
+    hgt = dome * 0.5 - patch * 0.05
+    alb = alb * ao_from_height(hgt, 2.0, 1.6)[..., None]
+    rough = np.clip(0.82 - oil * 0.5 - skid * 0.1, 0.1, 1)
+    save("runway", alb, hgt, rough, 4.0)
+
+
 if __name__ == "__main__":
     import sys
-    todo = sys.argv[1:] or ["forest_floor", "mud", "gravel", "bark", "log_side", "concrete", "asphalt", "painted_metal", "rock", "planks", "camo", "pine_card", "fern_card", "clouds"]
+    todo = sys.argv[1:] or ["forest_floor", "mud", "gravel", "bark", "log_side", "concrete", "asphalt", "painted_metal", "rock", "planks", "camo", "pine_card", "fern_card", "clouds", "meadow", "corrugated", "runway"]
     for name in todo:
         globals()[name]()
 

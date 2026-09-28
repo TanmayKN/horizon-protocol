@@ -433,11 +433,13 @@ func _knife_hit() -> void:
 	var fwd := -cam.global_transform.basis.z
 	var q := PhysicsRayQueryParameters3D.create(origin, origin + fwd * 2.4)
 	q.exclude = [player.get_rid()]
+	q.collision_mask = B.BULLET_MASK
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty():
 		# Forgiving: also check a slightly lower ray (enemies' torsos when you look at their heads)
 		q = PhysicsRayQueryParameters3D.create(origin, origin + (fwd + Vector3(0, -0.3, 0)).normalized() * 2.4)
 		q.exclude = [player.get_rid()]
+		q.collision_mask = B.BULLET_MASK
 		hit = get_world_3d().direct_space_state.intersect_ray(q)
 	if hit.is_empty():
 		return
@@ -465,6 +467,11 @@ func _fire() -> void:
 	_kick = 1.0
 	_flash_t = 0.04
 	S.play2d(self, String(d["sound"]), -3.0 if not d["loud"] else -1.0)
+	# brass casing tinkling on the ground a moment later
+	if randf() < 0.7:
+		get_tree().create_timer(randf_range(0.35, 0.6)).timeout.connect(func():
+			if is_inside_tree():
+				S.play2d(self, "casing", -20.0, 0.1))
 	var r: float = randf_range(0.9, 1.25) * (0.55 if player.aiming else 1.0) * float(d["recoil"])
 	player.add_recoil(r, randf_range(-0.35, 0.35) * float(d["recoil"]))
 	if player.game:
@@ -477,6 +484,7 @@ func _fire() -> void:
 	var dir := (fwd + cam.global_transform.basis.x * randf_range(-1, 1) * spread_rad * 0.5 + cam.global_transform.basis.y * randf_range(-1, 1) * spread_rad * 0.5).normalized()
 	var q := PhysicsRayQueryParameters3D.create(origin, origin + dir * RANGE)
 	q.exclude = [player.get_rid()]
+	q.collision_mask = B.BULLET_MASK
 	q.collide_with_areas = false
 	var hit := get_world_3d().direct_space_state.intersect_ray(q)
 	var end := origin + dir * RANGE
@@ -487,6 +495,7 @@ func _fire() -> void:
 			c.take_hit(float(d["damage"]), hit.position, dir)
 			if player.game:
 				player.game.hud.hitmarker()
+			S.play2d(self, "hitmarker", -14.0, 0.05)
 		elif c and c.has_method("on_shot"):
 			c.on_shot(hit.position)
 		else:
@@ -507,10 +516,24 @@ func _check_pickups() -> void:
 	var best: Node3D = null
 	var best_d := PICKUP_RANGE
 	var eye: Vector3 = player.global_position
-	for dr in game.weapon_drops:
+	for dr in game.weapon_drops.duplicate():
 		if not is_instance_valid(dr):
+			game.weapon_drops.erase(dr)
 			continue
 		var dist: float = Vector2(dr.global_position.x - eye.x, dr.global_position.z - eye.z).length()
+		var dgid: String = dr.get_meta("gun_id")
+		# A gun you already carry: walking over it just takes its bullets (no F needed)
+		if dist < 1.4 and absf(dr.global_position.y - eye.y) < 2.0 and slot_of(dgid) >= 0 and not player.driving:
+			game.weapon_drops.erase(dr)
+			dr.queue_free()
+			if not GUNS[dgid].get("melee", false):
+				var n: int = int(dr.get_meta("mag"))
+				add_ammo(String(GUNS[dgid]["ammo"]), n)
+				game.hud.hint("+%d  %s AMMO" % [n, GUNS[dgid]["ammo"]], 1.4)
+				S.play2d(self, "reload", -12.0)
+			continue
+		if slot_of(dgid) >= 0:
+			continue
 		if dist < best_d and absf(dr.global_position.y - eye.y) < 2.0:
 			best_d = dist
 			best = dr
@@ -524,12 +547,7 @@ func _check_pickups() -> void:
 	var gid: String = best.get_meta("gun_id")
 	var mag: int = best.get_meta("mag")
 	var text := ""
-	if slot_of(gid) >= 0:
-		if GUNS[gid].get("melee", false):
-			text = "You already have a %s" % GUNS[gid]["name"]
-		else:
-			text = "Press  F  to take ammo  (+%d %s)" % [mag, GUNS[gid]["ammo"]]
-	elif free_slot() >= 0:
+	if free_slot() >= 0:
 		text = "Press  F  to pick up  %s   (goes in slot %d)" % [GUNS[gid]["name"], free_slot() + 1]
 	else:
 		text = "Hands full - press  F  to swap your  %s  for  %s" % [weapon_name(current), GUNS[gid]["name"]]
@@ -604,4 +622,9 @@ func _impact(pos: Vector3, normal: Vector3) -> void:
 		var old = _holes.pop_front()
 		if is_instance_valid(old):
 			old.queue_free()
-	S.play3d(self, "impact", pos, -10.0)
+	var surf := "concrete"
+	if player.game:
+		surf = {"grass": "dirt", "mud": "dirt", "gravel": "dirt", "hard": "concrete", "metal": "metal"}.get(player.game.surface_at(pos), "concrete")
+		if surf == "dirt" and absf(normal.y) < 0.6:
+			surf = "concrete"   # walls
+	S.play3d(self, "impact_" + surf, pos, -6.0, 0.1, 60.0)

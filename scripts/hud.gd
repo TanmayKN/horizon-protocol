@@ -32,6 +32,9 @@ var _scope: Control
 var _radio_hide := 0.0
 var _hint_hide := 0.0
 var _title_t := -1.0
+var _banner: Label
+var _banner_hide := 0.0
+var _intel_mark: Label
 var _vig := 0.0
 var _hit_t := 0.0
 var _marker_pos = null
@@ -102,6 +105,19 @@ func _ready() -> void:
 	_radio_text = _label("", 18, Color(0.92, 0.95, 0.9), vb)
 	_radio_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_radio_panel.modulate.a = 0.0
+
+	_banner = _label("", 34, Color(1.0, 0.25, 0.18))
+	_place(_banner, Control.PRESET_CENTER_TOP, -700, 150, 700, 200)
+	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner.add_theme_constant_override("outline_size", 8)
+	_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_banner.visible = false
+	_intel_mark = _label("", 14, Color(0.5, 0.8, 1.0))
+	_intel_mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_intel_mark.size = Vector2(120, 40)
+	_intel_mark.add_theme_constant_override("outline_size", 5)
+	_intel_mark.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	_intel_mark.visible = false
 
 	_hint = _label("", 18, Color(1, 0.9, 0.6))
 	_place(_hint, Control.PRESET_CENTER, -400, 120, 400, 150)
@@ -200,11 +216,114 @@ func _ready() -> void:
 	_place(_click, Control.PRESET_CENTER, -300, -30, 300, 30)
 	_click.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
+	# Everything above goes in one container so cutscenes can hide the whole HUD at once
+	_hud_root = Control.new()
+	_hud_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var kids := get_children()
+	add_child(_hud_root)
+	_hud_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for c in kids:
+		if c == _title or c == _subtitle:
+			continue
+		remove_child(c)
+		_hud_root.add_child(c)
+	move_child(_title, -1)
+	move_child(_subtitle, -1)
+	_build_cinema()
+
 	_fade = ColorRect.new()
 	_fade.color = Color(0, 0, 0, 1)
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_fade)
+
+
+# ------------------------------------------------------------------ cinema (cutscenes)
+
+var _hud_root: Control
+var _cine: Control
+var _bar_top: ColorRect
+var _bar_bot: ColorRect
+var _sub_name: Label
+var _sub_text: Label
+var _skip_label: Label
+var _skip_bar: ProgressBar
+
+
+func _build_cinema() -> void:
+	_cine = Control.new()
+	_cine.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_cine)
+	_cine.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_bar_top = ColorRect.new()
+	_bar_top.color = Color.BLACK
+	_cine.add_child(_bar_top)
+	_bar_top.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_bar_top.offset_bottom = 0.0
+	_bar_bot = ColorRect.new()
+	_bar_bot.color = Color.BLACK
+	_cine.add_child(_bar_bot)
+	_bar_bot.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
+	_bar_bot.offset_top = 0.0
+	_sub_name = _label("", 17, Color(1.0, 0.8, 0.35), _cine)
+	_place(_sub_name, Control.PRESET_CENTER_BOTTOM, -500, -118, 500, -94)
+	_sub_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_sub_text = _label("", 22, Color(0.95, 0.95, 0.92), _cine)
+	_place(_sub_text, Control.PRESET_CENTER_BOTTOM, -560, -94, 560, -30)
+	_sub_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_sub_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_skip_label = _label("Hold  SPACE  to skip", 14, Color(0.8, 0.8, 0.8, 0.8), _cine)
+	_place(_skip_label, Control.PRESET_BOTTOM_RIGHT, -230, -26, -20, -6)
+	_skip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_skip_bar = ProgressBar.new()
+	_skip_bar.show_percentage = false
+	_skip_bar.max_value = 1.0
+	_cine.add_child(_skip_bar)
+	_place(_skip_bar, Control.PRESET_BOTTOM_RIGHT, -230, -8, -20, -4)
+	_skip_bar.visible = false
+	_cine.visible = false
+	_white = ColorRect.new()
+	_white.color = Color(1, 1, 1, 0)
+	_white.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_white)
+	_white.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+
+var _white: ColorRect
+
+
+## Flashbang / explosion white-out that fades away
+func flash_white(duration := 2.5) -> void:
+	_white.color.a = 1.0
+	var tw := create_tween()
+	tw.tween_interval(duration * 0.3)
+	tw.tween_property(_white, "color:a", 0.0, duration * 0.7)
+
+
+## Letterbox bars slide in, the normal HUD disappears
+func cinema(on: bool) -> void:
+	var h := get_viewport().get_visible_rect().size.y * 0.12
+	_hud_root.visible = not on
+	if on:
+		_cine.visible = true
+		_bar_top.offset_bottom = 0.0
+		_bar_bot.offset_top = 0.0
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(_bar_top, "offset_bottom", h if on else 0.0, 0.6).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_bar_bot, "offset_top", -h if on else 0.0, 0.6).set_trans(Tween.TRANS_SINE)
+	if not on:
+		tw.chain().tween_callback(func(): _cine.visible = false)
+	subtitle("", "")
+
+
+func subtitle(speaker: String, text: String) -> void:
+	_sub_name.text = speaker.to_upper()
+	_sub_text.text = text
+
+
+func cine_skip(progress: float) -> void:
+	_skip_bar.visible = progress > 0.0
+	_skip_bar.value = progress
 
 
 func _process(delta: float) -> void:
@@ -223,6 +342,13 @@ func _process(delta: float) -> void:
 		_radio_panel.modulate.a = move_toward(_radio_panel.modulate.a, 0.0, delta * 2.5)
 	if _t > _hint_hide:
 		_hint.modulate.a = move_toward(_hint.modulate.a, 0.0, delta * 2.0)
+
+	# Flashing alert banner (lockdown etc.)
+	if _banner.visible:
+		_banner.modulate.a = 0.55 + 0.45 * absf(sin(_t * 6.0))
+		if _t > _banner_hide:
+			_banner.visible = false
+	_update_intel_marker(p)
 
 	# Title card
 	if _title_t >= 0.0:
@@ -346,6 +472,8 @@ func radio(speaker: String, text: String, duration := 5.5) -> void:
 
 
 func title(line1: String, line2: String) -> void:
+	if game and game.audio:
+		game.audio.stinger("sting_title", -6.0)
 	_title.text = line1
 	_subtitle.text = line2
 	_title_t = 0.0
@@ -387,6 +515,38 @@ func _scope_texture() -> ImageTexture:
 		for x in range(-2, 3):
 			img.set_pixel(int(c) + x, int(c) + y, Color(0.9, 0.1, 0.05, 1.0))
 	return ImageTexture.create_from_image(img)
+
+
+## Big flashing red message across the top of the screen
+func banner(text: String, duration := 5.0) -> void:
+	_banner.text = text
+	_banner.visible = true
+	_banner_hide = _t + duration
+
+
+## Small blue "INTEL" diamond over the nearest unread intel document (within 60 m)
+func _update_intel_marker(p) -> void:
+	_intel_mark.visible = false
+	if p.is_dead or p.driving or game.intel_items.is_empty():
+		return
+	var best: Node3D = null
+	var best_d := 60.0
+	for it in game.intel_items:
+		if is_instance_valid(it) and it.is_visible_in_tree():
+			var d: float = p.global_position.distance_to(it.global_position)
+			if d < best_d:
+				best_d = d
+				best = it
+	if best == null:
+		return
+	var mp: Vector3 = best.global_position + Vector3(0, 0.9, 0)
+	var cam: Camera3D = p.camera
+	if cam.is_position_behind(mp):
+		return
+	var sp := cam.unproject_position(mp)
+	_intel_mark.visible = true
+	_intel_mark.position = sp - Vector2(60, 20)
+	_intel_mark.text = "INTEL\n%dm" % int(best_d)
 
 
 func hint(text: String, duration := 3.0) -> void:

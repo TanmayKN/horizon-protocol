@@ -35,6 +35,27 @@ static func material_for(mat_name: String, tint: Color) -> Material:
 			return vehicle_paint(tint, 0.9 if n == "truck_paint" else -5.0)
 		"glass":
 			return M.get_mat("glass")
+		"jet_paint":
+			var jp := StandardMaterial3D.new()
+			jp.albedo_color = Color(0.86, 0.87, 0.88) if tint == Color.WHITE else tint
+			jp.roughness = 0.35
+			jp.metallic = 0.3
+			return jp
+		"glass_dark":
+			var gd := StandardMaterial3D.new()
+			gd.albedo_color = Color(0.05, 0.07, 0.09)
+			gd.roughness = 0.05
+			gd.metallic = 0.6
+			return gd
+		"stripe":
+			var st := StandardMaterial3D.new()
+			st.albedo_color = Color(0.1, 0.18, 0.4)
+			st.roughness = 0.4
+			return st
+		"nav_red":
+			return M.emissive(Color(1, 0.1, 0.05), 4.0)
+		"nav_green":
+			return M.emissive(Color(0.1, 1, 0.2), 4.0)
 		"ammo_paint":
 			return vehicle_paint(tint if tint != Color.WHITE else Color(0.32, 0.36, 0.25), -5.0)
 		"stencil":
@@ -106,6 +127,23 @@ static func material_for(mat_name: String, tint: Color) -> Material:
 			return M.tinted("gear", Color(0.45, 0.05, 0.05))
 		"skin":
 			return M.tinted("gear", Color(0.72, 0.55, 0.45))
+		"coat_hale":
+			var ch := StandardMaterial3D.new()      # plain officer's wool, not battlefield camo
+			ch.albedo_color = Color(0.46, 0.42, 0.3)
+			ch.roughness = 0.95
+			return ch
+		"uniform_allied":
+			return M.tinted("uniform", Color(0.5, 0.5, 0.42))
+		"hair":
+			return M.tinted("gear", Color(0.12, 0.09, 0.07))
+		"hair_grey":
+			return M.tinted("gear", Color(0.55, 0.55, 0.55))
+		"lip":
+			return M.tinted("gear", Color(0.5, 0.3, 0.28))
+		"cap_hale":
+			return M.tinted("gear", Color(0.22, 0.25, 0.2))
+		"gold":
+			return M.emissive(Color(0.85, 0.65, 0.2), 0.3)
 		"patch":
 			return M.tinted("gear", Color(0.6, 0.12, 0.1))
 		"metal", "rust", "gun_metal", "gun_polymer", "gear", "black", "wood", "concrete", "bark", "log":
